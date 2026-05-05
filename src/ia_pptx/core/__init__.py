@@ -9,7 +9,6 @@ visual self-healing loop (render → screenshot → vision QA → revise).
 """
 
 from ia_pptx.core.exceptions import (
-    DesignLibraryUnavailable,
     GenerationFailed,
     InvalidPrompt,
     RenderFailed,
@@ -18,7 +17,6 @@ from ia_pptx.core.freeform import FreeformResult, freeform_generate
 from ia_pptx.core.freeform_pdf import FreeformPdfResult, freeform_pdf_generate
 
 __all__ = [
-    "DesignLibraryUnavailable",
     "FreeformPdfResult",
     "FreeformResult",
     "GenerationFailed",

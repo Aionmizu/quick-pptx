@@ -111,6 +111,9 @@ module = [
   "ia_pptx.core._llm",
   "ia_pptx.core.freeform",
   "ia_pptx.core.freeform_pdf",
+  "ia_pptx.core.critique",
+  "ia_pptx.core.plan_critic",
+  "ia_pptx.design.presets",
 ]
 disallow_untyped_defs = true
 warn_return_any = true

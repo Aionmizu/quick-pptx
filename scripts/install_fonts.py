@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -33,7 +34,23 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
 
 from ia_pptx.design import PRESETS  # noqa: E402
 
-FONT_DIR = Path.home() / ".local" / "share" / "fonts" / "quick-pptx"
+
+def _platform_font_dir() -> Path:
+    """Return the per-platform user-fonts directory LibreOffice will pick up."""
+    home = Path.home()
+    if sys.platform == "darwin":
+        return home / "Library" / "Fonts" / "quick-pptx"
+    if sys.platform.startswith("win"):
+        # Windows 10+ supports per-user fonts in this exact location and
+        # picks them up without admin rights.
+        local_appdata = os.environ.get("LOCALAPPDATA") or str(home / "AppData" / "Local")
+        return Path(local_appdata) / "Microsoft" / "Windows" / "Fonts" / "quick-pptx"
+    # Linux / *BSD — fontconfig reads ~/.local/share/fonts by default.
+    return home / ".local" / "share" / "fonts" / "quick-pptx"
+
+
+FONT_DIR = _platform_font_dir()
+
 # Force TTF (not WOFF2) — LibreOffice's fontconfig reads TTF/OTF reliably
 # but WOFF2 support is patchy across distros. An old Firefox UA tells
 # Google Fonts to serve TTF instead of WOFF2.
@@ -125,15 +142,27 @@ def main() -> int:
         total += n
     print(f"\nDownloaded {total} new file(s).")
 
-    fc_cache = shutil.which("fc-cache")
-    if fc_cache:
-        print("Refreshing system font cache…")
-        subprocess.run([fc_cache, "-f"], check=False)
-    else:
+    if sys.platform.startswith("linux") or "bsd" in sys.platform:
+        fc_cache = shutil.which("fc-cache")
+        if fc_cache:
+            print("Refreshing fontconfig cache…")
+            subprocess.run([fc_cache, "-f"], check=False)
+        else:
+            print(
+                "(fc-cache not found — LibreOffice may not pick up new fonts "
+                "until you restart it or run `fc-cache -f` manually.)",
+                file=sys.stderr,
+            )
+    elif sys.platform == "darwin":
         print(
-            "(fc-cache not found — LibreOffice may not pick up new fonts until you "
-            "restart it or run `fc-cache -f` manually.)",
-            file=sys.stderr,
+            "macOS picks up new fonts in ~/Library/Fonts/ automatically. "
+            "If LibreOffice is already open, restart it to refresh."
+        )
+    elif sys.platform.startswith("win"):
+        print(
+            "Windows 10+ picks up per-user fonts in "
+            "%LOCALAPPDATA%\\Microsoft\\Windows\\Fonts automatically. "
+            "If LibreOffice is already open, restart it to refresh."
         )
     print("Done.")
     return 0

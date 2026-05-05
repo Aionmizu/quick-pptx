@@ -154,7 +154,8 @@ def _extract_json(raw: str) -> dict:
     match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
     if not match:
         raise ValueError(f"No JSON object: {raw[:200]!r}")
-    return json.loads(match.group(0))
+    parsed: dict = json.loads(match.group(0))
+    return parsed
 
 
 def _parse_atoms(raw_atoms: object) -> list[AtomScore]:

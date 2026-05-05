@@ -258,7 +258,7 @@ def freeform_generate(
     plan_critic_enabled: bool = True,
     final_critique_enabled: bool = True,
     critique_threshold: float = 70.0,
-    effort: str = "max",
+    effort: str = "medium",
 ) -> FreeformResult:
     """Generate a deck via the freeform Claude-writes-pptxgenjs pipeline.
 
@@ -335,8 +335,15 @@ def freeform_generate(
         if length_hint is None and plan_review.suggested_length:
             effective_length_hint = plan_review.suggested_length
             _emit(f"Plan critic suggested length: {effective_length_hint} slides.")
-        # Append the outline as a hint for the generation prompt.
-        outline_block = format_plan_for_generation(plan_review)
+        # Build outline hint. Truncate to user's explicit length_hint so the
+        # critic can't override it — Claude shouldn't see 14 slides if user
+        # asked for 8.
+        truncated = plan_review
+        if length_hint is not None and len(plan_review.outline) > length_hint:
+            from dataclasses import replace as _dc_replace
+
+            truncated = _dc_replace(plan_review, outline=plan_review.outline[:length_hint])
+        outline_block = format_plan_for_generation(truncated)
         if outline_block:
             effective_prompt = effective_prompt + outline_block
 

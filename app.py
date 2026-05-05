@@ -12,6 +12,7 @@ Run:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import threading
 import time
@@ -413,25 +414,30 @@ with st.expander("LLM backend", expanded=False):
     llm_pref = LLM_PREFS[llm_label]
 
     EFFORT_LABELS = {
-        "Max (deepest reasoning, slowest, recommended)": "max",
-        "X-High (very deep, slightly faster than max)": "xhigh",
-        "High (good quality, ~2× faster than max)": "high",
-        "Medium (balanced)": "medium",
-        "Low (fastest, drafts only)": "low",
+        "Medium — balanced quality / speed / cost (default)": "medium",
+        "High — better quality, ~2× slower & more expensive": "high",
+        "X-High — very deep, ~3× the cost of medium": "xhigh",
+        "Max — deepest reasoning, ~3-5× the cost of medium": "max",
+        "Low — fastest & cheapest, drafts only": "low",
     }
     effort_label = st.selectbox(
         "Claude Code effort level",
         options=list(EFFORT_LABELS.keys()),
         index=0,
         help=(
-            "Controls how deeply Claude Code reasons per call. "
-            "**Max** is recommended for final decks (5–10× longer than low, "
-            "but the visual QA loop and final critique catch fewer regressions). "
-            "**Low** is good for quick drafts when you're just exploring a topic. "
-            "Ignored when the backend is the Anthropic API."
+            "Controls how deeply Claude Code reasons per call. **Medium** is "
+            "a balanced default. **Max** is best quality but burns subscription "
+            "quota fast — only use when you really want a polished final deck. "
+            "**Low** for quick drafts. Ignored when the backend is the API."
         ),
     )
     effort_level = EFFORT_LABELS[effort_label]
+    if effort_level in {"xhigh", "max"}:
+        st.warning(
+            "⚠️  This effort level is significantly more expensive. A 10-slide "
+            "deck typically runs $1–2 at medium, $3–5 at high, $5–15 at max. "
+            "Use it for final decks, not exploration."
+        )
 
     # Detection status — surface clearly so the user knows what will run.
     cc_present = claude_code_available()
@@ -472,7 +478,11 @@ ss.setdefault("cancel_event", None)
 
 def _start_worker(*, kind: str) -> None:
     """Spawn the generation in a daemon thread and return immediately."""
-    out_dir = _REPO_ROOT / "out" / ("freeform" if kind == "pptx" else "freeform-pdf")
+    # Output goes under cwd, not the package install path — keeps things
+    # working when ia-pptx is pip-installed from a wheel (no repo root then).
+    # Override via IA_PPTX_OUT_DIR if you want a fixed location.
+    out_root = Path(os.environ.get("IA_PPTX_OUT_DIR", Path.cwd() / "out"))
+    out_dir = out_root / ("freeform" if kind == "pptx" else "freeform-pdf")
     out_dir.mkdir(parents=True, exist_ok=True)
     out_name = f"deck_{kind}.pptx" if kind == "pptx" else "deck_pdf.pdf"
     output_path = out_dir / out_name

@@ -86,7 +86,8 @@ def _extract_json(text: str) -> dict[str, Any]:
     match = re.search(r"\{.*\}", text, flags=re.DOTALL)
     if not match:
         raise ValueError(f"No JSON object found in plan-critic response: {text[:200]!r}")
-    return json.loads(match.group(0))
+    parsed: dict[str, Any] = json.loads(match.group(0))
+    return parsed
 
 
 def critique_plan(

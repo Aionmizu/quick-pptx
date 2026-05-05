@@ -49,42 +49,64 @@ def main() -> int:
     parser.add_argument(
         "--style",
         default="auto",
-        help="Style preset name (e.g. 'editorial-classic', 'tech-startup'). "
-        "Default 'auto' picks one randomly.",
+        help="Theme slug (e.g. 'editorial-grid-magazine', 'tech-startup'). "
+        "Default 'auto' lets a small LLM call pick the best fit for the prompt.",
     )
     parser.add_argument(
         "--naegle-rules",
         action="store_true",
         help="Apply Naegle 2021 ten rules of academic slide design (opt-in).",
     )
+    parser.add_argument(
+        "--effort",
+        default="medium",
+        choices=["low", "medium", "high", "xhigh", "max"],
+        help="Claude Code reasoning depth. medium (default) is balanced; "
+        "max = best quality but ~3-5x slower and more expensive. Ignored "
+        "when --llm api.",
+    )
+    parser.add_argument(
+        "--no-plan-critic",
+        action="store_true",
+        help="Disable the pre-flight adversarial plan review.",
+    )
+    parser.add_argument(
+        "--no-final-critique",
+        action="store_true",
+        help="Disable the 10-atom final critique pass.",
+    )
+    parser.add_argument(
+        "--critique-threshold",
+        type=float,
+        default=70.0,
+        help="Deck-level critique threshold (0–100, default 70). Below → 1 revise pass.",
+    )
     args = parser.parse_args()
+
+    common_kwargs = {
+        "prompt": args.prompt,
+        "output_path": args.output,
+        "length_hint": args.length,
+        "max_iterations": args.max_iterations,
+        "llm_pref": args.llm,
+        "style": args.style,
+        "apply_naegle": args.naegle_rules,
+        "effort": args.effort,
+        "plan_critic_enabled": not args.no_plan_critic,
+        "final_critique_enabled": not args.no_final_critique,
+        "critique_threshold": args.critique_threshold,
+    }
 
     try:
         if args.format == "pdf":
             from ia_pptx.core import freeform_pdf_generate
 
-            result = freeform_pdf_generate(
-                prompt=args.prompt,
-                output_path=args.output,
-                length_hint=args.length,
-                max_iterations=args.max_iterations,
-                llm_pref=args.llm,
-                style=args.style,
-                apply_naegle=args.naegle_rules,
-            )
+            result = freeform_pdf_generate(**common_kwargs)
             path = result.pdf_path
         else:
             from ia_pptx.core import freeform_generate
 
-            result_pptx = freeform_generate(
-                prompt=args.prompt,
-                output_path=args.output,
-                length_hint=args.length,
-                max_iterations=args.max_iterations,
-                llm_pref=args.llm,
-                style=args.style,
-                apply_naegle=args.naegle_rules,
-            )
+            result_pptx = freeform_generate(**common_kwargs)
             path = result_pptx.pptx_path
     except Exception as exc:
         print(f"Generation failed: {exc}", file=sys.stderr)

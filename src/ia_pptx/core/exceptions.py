@@ -7,10 +7,6 @@ class IaPptxError(Exception):
     """Base class for all ia_pptx errors."""
 
 
-class DesignLibraryUnavailable(IaPptxError):
-    """Vendored design library could not be loaded and fallback is also unavailable."""
-
-
 class InvalidPrompt(IaPptxError):
     """Caller-supplied prompt is invalid (empty, too long, etc.)."""
 

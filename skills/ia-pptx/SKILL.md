@@ -69,10 +69,12 @@ PYTHONPATH=<skill-bundle>/src python3 -m ia_pptx generate-pdf \
 If the user did not specify length, default to 10. Parse a count from the
 prompt if mentioned.
 
-`--style`: pick a curated preset (palette + Google Fonts pairing + composition
-character). Use `python3 -m ia_pptx list-styles` to see all 20. Default `auto`
-picks randomly. If the user mentioned a tone (e.g. "academic", "modern tech",
-"editorial magazine", "luxury", "brutalist"), pick the matching preset name.
+`--style`: pick a theme (palette + Google Fonts pairing + composition mood,
+parsed from the vendored ui-ux-pro-max library). Use
+`python3 -m ia_pptx list-styles` to see all 67. Default `auto` runs a tiny
+LLM call that picks the best-fitting theme for the prompt. If the user
+mentioned a tone (e.g. "academic", "modern tech", "editorial magazine",
+"luxury", "brutalist"), pass the matching slug explicitly.
 
 `--naegle-rules`: opt-in to the Naegle 2021 ten rules of academic slide design
 (one idea per slide, ≤6 informational elements, title states the conclusion,

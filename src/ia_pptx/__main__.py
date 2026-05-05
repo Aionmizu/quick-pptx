@@ -204,10 +204,11 @@ def main() -> int:
         )
         p.add_argument(
             "--effort",
-            default="max",
+            default="medium",
             choices=["low", "medium", "high", "xhigh", "max"],
-            help="Claude Code reasoning depth. low = fastest/cheapest. "
-            "max = deepest reasoning (default). Ignored when --llm api.",
+            help="Claude Code reasoning depth. medium (default) is balanced. "
+            "max = deepest reasoning, ~3-5x slower and more expensive. "
+            "low = drafts. Ignored when --llm api.",
         )
 
     p_gen = sub.add_parser(

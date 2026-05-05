@@ -17,7 +17,7 @@ Most "AI deck" tools settle for "title + bullets, repeated 10×, with a corporat
 | `generate` | `.pptx` | pptxgenjs (Node.js) | ✅ in PowerPoint / Keynote | High |
 | `generate-pdf` | `.pdf` | HTML / CSS via WeasyPrint | ❌ | Highest (web fonts, gradients, transforms) |
 
-Both share: per-slide composition, theme-aware palettes (20 presets from ui-ux-pro-max), a 3-pass visual QA self-heal loop, and the same LLM abstraction (Anthropic API **or** Claude Code CLI subprocess).
+Both share: per-slide composition, 67 themes drawn from the vendored `ui-ux-pro-max` library, a 3-pass visual QA self-heal loop, plan critic + final critique, and the same LLM abstraction (Anthropic API **or** Claude Code CLI subprocess).
 
 ---
 
@@ -114,7 +114,7 @@ Useful flags:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--style <name>` | `auto` | Pick a curated preset (e.g. `editorial-classic`, `tech-startup`, `magazine-bodoni`). `auto` = random thematic pick. Run `python3 -m ia_pptx list-styles` to see all 20. |
+| `--style <name>` | `auto` | Pick a theme (e.g. `editorial-grid-magazine`, `tech-startup`, `magazine-bodoni`). `auto` runs a small LLM call that picks the best-fitting theme for your prompt. Run `python3 -m ia_pptx list-styles` to see all 67. |
 | `--naegle-rules` | off | Apply the Naegle 2021 ten rules of academic slide design (1 idea/slide, ≤6 informational elements, title = conclusion). Recommended for research / academic decks. Off for marketing / pitch. |
 | `--length <N>` | model picks | Target slide count. |
 | `--max-iterations <N>` | 3 | Visual QA loop budget. |

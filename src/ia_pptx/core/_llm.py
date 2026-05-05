@@ -139,7 +139,10 @@ IMAGE GENERATION (Nano Banana / Gemini 2.5 Flash Image):
   When the deck would benefit from an explanatory diagram, illustration, or
   background graphic that a stock-photo search wouldn't satisfy, use:
 
-    python3 {gen_image_path} "<prompt>" --output /tmp/img-NN.png
+    python3 {gen_image_path} "<prompt>" --output {tmp_dir}/img-NN.png
+
+  Replace {tmp_dir} with whatever shell tempdir convention is appropriate
+  for the host (`$TMPDIR` / `$TEMP` / `%TEMP%`). Use absolute paths.
 
   Examples of legitimate uses:
     - "diagram of the water cycle: evaporation, condensation, precipitation,
@@ -148,9 +151,9 @@ IMAGE GENERATION (Nano Banana / Gemini 2.5 Flash Image):
     - "abstract geometric texture in muted ink/rust tones, 1920×1080"
 
   Then embed in pptxgenjs:
-    slide.addImage({{ path: "/tmp/img-NN.png", x: ..., y: ..., w: ..., h: ... }})
+    slide.addImage({{ path: "<absolute path>", x: ..., y: ..., w: ..., h: ... }})
   Or in HTML:
-    <img src="file:///tmp/img-NN.png" alt="...">
+    <img src="file://<absolute path>" alt="...">
 
   Use sparingly — only when the image carries information. A pretty
   background can hurt the distracted-person test if it competes with the
@@ -194,7 +197,10 @@ def _resolve_gen_image_path() -> str:
     return "scripts/gen_image.py"
 
 
-_CARTE_BLANCHE_NOTE = _CARTE_BLANCHE_NOTE.format(gen_image_path=_resolve_gen_image_path())
+_CARTE_BLANCHE_NOTE = _CARTE_BLANCHE_NOTE.format(
+    gen_image_path=_resolve_gen_image_path(),
+    tmp_dir=tempfile.gettempdir(),
+)
 
 
 def claude_code_available() -> bool:
@@ -250,7 +256,7 @@ class ClaudeCodeCLI:
 
     name = "claude-code-cli"
 
-    def __init__(self, model: str = "opus", effort: str = "max") -> None:
+    def __init__(self, model: str = "opus", effort: str = "medium") -> None:
         # Use a tmp cwd so the CLI doesn't auto-load the project's CLAUDE.md,
         # memory, plugins, etc. on every call.
         self._isolated_cwd = Path(tempfile.gettempdir()) / "ia-pptx-claude-runner"
@@ -314,7 +320,7 @@ class ClaudeCodeCLI:
 # ─── Factory ─────────────────────────────────────────────────────────────────
 
 
-def get_llm(prefer: str = "auto", *, effort: str = "max") -> LLM:
+def get_llm(prefer: str = "auto", *, effort: str = "medium") -> LLM:
     """Return an LLM backend.
 
     `prefer`:

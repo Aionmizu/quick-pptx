@@ -224,7 +224,7 @@ def freeform_pdf_generate(
     plan_critic_enabled: bool = True,
     final_critique_enabled: bool = True,
     critique_threshold: float = 70.0,
-    effort: str = "max",
+    effort: str = "medium",
 ) -> FreeformPdfResult:
     """Generate a PDF deck via the freeform Claude-writes-HTML pipeline.
 
@@ -287,7 +287,14 @@ def freeform_pdf_generate(
         if length_hint is None and plan_review.suggested_length:
             effective_length_hint = plan_review.suggested_length
             _emit(f"Plan critic suggested length: {effective_length_hint} slides.")
-        outline_block = format_plan_for_generation(plan_review)
+        # Truncate outline to user's explicit length_hint so the critic
+        # doesn't override it.
+        truncated = plan_review
+        if length_hint is not None and len(plan_review.outline) > length_hint:
+            from dataclasses import replace as _dc_replace
+
+            truncated = _dc_replace(plan_review, outline=plan_review.outline[:length_hint])
+        outline_block = format_plan_for_generation(truncated)
         if outline_block:
             effective_prompt = effective_prompt + outline_block
 
