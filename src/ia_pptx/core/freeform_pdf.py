@@ -224,6 +224,7 @@ def freeform_pdf_generate(
     plan_critic_enabled: bool = True,
     final_critique_enabled: bool = True,
     critique_threshold: float = 70.0,
+    effort: str = "max",
 ) -> FreeformPdfResult:
     """Generate a PDF deck via the freeform Claude-writes-HTML pipeline.
 
@@ -241,8 +242,8 @@ def freeform_pdf_generate(
             except Exception:
                 pass
 
-    llm = get_llm(prefer=llm_pref)
-    _emit(f"LLM backend: {llm.name}")
+    llm = get_llm(prefer=llm_pref, effort=effort)
+    _emit(f"LLM backend: {llm.name} (effort={effort})")
 
     if not style or style.lower() == "auto":
         _emit("Picking best-fitting theme via LLM…")

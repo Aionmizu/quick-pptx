@@ -330,6 +330,27 @@ with st.expander("LLM backend", expanded=False):
     )
     llm_pref = LLM_PREFS[llm_label]
 
+    EFFORT_LABELS = {
+        "Max (deepest reasoning, slowest, recommended)": "max",
+        "X-High (very deep, slightly faster than max)": "xhigh",
+        "High (good quality, ~2× faster than max)": "high",
+        "Medium (balanced)": "medium",
+        "Low (fastest, drafts only)": "low",
+    }
+    effort_label = st.selectbox(
+        "Claude Code effort level",
+        options=list(EFFORT_LABELS.keys()),
+        index=0,
+        help=(
+            "Controls how deeply Claude Code reasons per call. "
+            "**Max** is recommended for final decks (5–10× longer than low, "
+            "but the visual QA loop and final critique catch fewer regressions). "
+            "**Low** is good for quick drafts when you're just exploring a topic. "
+            "Ignored when the backend is the Anthropic API."
+        ),
+    )
+    effort_level = EFFORT_LABELS[effort_label]
+
     # Detection status — surface clearly so the user knows what will run.
     cc_present = claude_code_available()
     if cc_present:
@@ -394,6 +415,7 @@ def _start_worker(*, kind: str) -> None:
         "plan_critic_enabled": plan_critic_enabled,
         "final_critique_enabled": final_critique_enabled,
         "critique_threshold": float(critique_threshold),
+        "effort": effort_level,
     }
 
     def _progress(msg: str) -> None:
@@ -460,17 +482,29 @@ else:
 
 
 # ── Live event log + result panel ──────────────────────────────────────────
+#
+# We don't use `st.status` because it auto-collapses on each rerun (every
+# 0.5 s while the worker runs). The user clicks to expand → next rerun fires
+# → status closes again. Switch to a plain status banner + a normal
+# `st.expander` whose toggle state Streamlit persists across reruns.
 
 if ss.worker_running or ss.worker_events:
-    with st.status(
-        "Running…" if ss.worker_running else "Done.",
-        expanded=True,
-        state="running" if ss.worker_running else "complete",
-    ) as status:
-        events = list(ss.worker_events)
-        if events:
-            status.update(label=events[-1])
-            st.markdown("\n".join(f"- {e}" for e in events[-30:]))
+    events = list(ss.worker_events)
+    current_step = events[-1] if events else "starting…"
+    if ss.worker_running:
+        st.markdown(f"**🔄 Running** — {current_step}")
+    elif ss.worker_cancelled:
+        st.markdown(f"**🛑 Cancelled** — {current_step}")
+    elif ss.worker_error:
+        st.markdown("**❌ Failed** — see error below")
+    else:
+        st.markdown("**✅ Done** — see results below")
+
+    if events:
+        # Plain expander (NOT st.status) — its open/closed state IS preserved
+        # by Streamlit across the auto-reruns, so the user can leave it open.
+        with st.expander(f"📋 Pipeline log ({len(events)} step(s))", expanded=False):
+            st.markdown("\n".join(f"- {e}" for e in events[-50:]))
 
 if ss.worker_cancelled:
     st.warning("Generation cancelled. Partial files may exist on disk.")

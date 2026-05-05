@@ -78,6 +78,7 @@ def _cmd_generate(args: argparse.Namespace) -> int:
             plan_critic_enabled=not args.no_plan_critic,
             final_critique_enabled=not args.no_final_critique,
             critique_threshold=args.critique_threshold,
+            effort=args.effort,
         )
     except Exception as exc:
         print(f"Generation failed: {exc}", file=sys.stderr)
@@ -105,6 +106,7 @@ def _cmd_generate_pdf(args: argparse.Namespace) -> int:
             plan_critic_enabled=not args.no_plan_critic,
             final_critique_enabled=not args.no_final_critique,
             critique_threshold=args.critique_threshold,
+            effort=args.effort,
         )
     except Exception as exc:
         print(f"PDF generation failed: {exc}", file=sys.stderr)
@@ -199,6 +201,13 @@ def main() -> int:
             type=float,
             default=70.0,
             help="Deck-level critique threshold (0–100, default 70). Below → 1 revise pass.",
+        )
+        p.add_argument(
+            "--effort",
+            default="max",
+            choices=["low", "medium", "high", "xhigh", "max"],
+            help="Claude Code reasoning depth. low = fastest/cheapest. "
+            "max = deepest reasoning (default). Ignored when --llm api.",
         )
 
     p_gen = sub.add_parser(

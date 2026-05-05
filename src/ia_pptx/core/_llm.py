@@ -97,8 +97,8 @@ class AnthropicAPI:
 # Minimization flags so each subprocess call doesn't load the user's whole
 # project context (CLAUDE.md, memory, MCP servers, slash commands, settings).
 # Without these, a single PONG round-trip costs ~$1.25; with them, ~$0.03.
-# `--effort max` requests the model's deepest reasoning capability — quality
-# over efficiency, per the project's stated tradeoff.
+# `--effort` is now a per-instance setting (see ClaudeCodeCLI) so callers
+# can trade speed vs quality.
 _CLAUDE_MIN_FLAGS = [
     "--permission-mode",
     "bypassPermissions",
@@ -110,9 +110,8 @@ _CLAUDE_MIN_FLAGS = [
     "--disable-slash-commands",
     "--setting-sources",
     "",
-    "--effort",
-    "max",
 ]
+EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 # Up to 25 min — Claude Code may install npm/pip packages, run them, fix
 # issues, then clean up. Quality over speed.
 _CLAUDE_TIMEOUT_S = 1500
@@ -251,12 +250,15 @@ class ClaudeCodeCLI:
 
     name = "claude-code-cli"
 
-    def __init__(self, model: str = "opus") -> None:
+    def __init__(self, model: str = "opus", effort: str = "max") -> None:
         # Use a tmp cwd so the CLI doesn't auto-load the project's CLAUDE.md,
         # memory, plugins, etc. on every call.
         self._isolated_cwd = Path(tempfile.gettempdir()) / "ia-pptx-claude-runner"
         self._isolated_cwd.mkdir(exist_ok=True)
         self._model = model
+        if effort not in EFFORT_LEVELS:
+            raise ValueError(f"effort must be one of {EFFORT_LEVELS}, got {effort!r}")
+        self._effort = effort
 
     def text(self, *, system: str, user: str, max_tokens: int = 8192) -> str:
         # max_tokens isn't directly settable on Claude Code CLI; the model
@@ -270,6 +272,8 @@ class ClaudeCodeCLI:
             args=[
                 "--model",
                 self._model,
+                "--effort",
+                self._effort,
                 "--system-prompt",
                 system + _CARTE_BLANCHE_NOTE,
             ],
@@ -292,6 +296,8 @@ class ClaudeCodeCLI:
             args=[
                 "--model",
                 self._model,
+                "--effort",
+                self._effort,
                 "--system-prompt",
                 system,
                 # Allow only Read so it can load the image. `Read` is a non-empty
@@ -308,7 +314,7 @@ class ClaudeCodeCLI:
 # ─── Factory ─────────────────────────────────────────────────────────────────
 
 
-def get_llm(prefer: str = "auto") -> LLM:
+def get_llm(prefer: str = "auto", *, effort: str = "max") -> LLM:
     """Return an LLM backend.
 
     `prefer`:
@@ -316,6 +322,9 @@ def get_llm(prefer: str = "auto") -> LLM:
         Logs which one was picked at INFO level.
       - "code": force Claude Code CLI (raises an actionable error if absent).
       - "api":  force Anthropic API (raises if no key).
+
+    `effort` controls Claude Code's reasoning depth (low/medium/high/xhigh/max).
+    Ignored when the resolved backend is the Anthropic API.
     """
     if prefer == "code":
         if not claude_code_available():
@@ -324,16 +333,16 @@ def get_llm(prefer: str = "auto") -> LLM:
                 "  - Install Claude Code from https://claude.com/code if you have a subscription.\n"
                 "  - Otherwise use `--llm api` (needs ANTHROPIC_API_KEY)."
             )
-        logger.info("LLM: using Claude Code CLI (forced via --llm code).")
-        return ClaudeCodeCLI()
+        logger.info("LLM: using Claude Code CLI (effort=%s).", effort)
+        return ClaudeCodeCLI(effort=effort)
     if prefer == "api":
         logger.info("LLM: using Anthropic API (forced via --llm api).")
         return AnthropicAPI()
     if prefer == "auto":
         if claude_code_available():
             try:
-                client = ClaudeCodeCLI()
-                logger.info("LLM: detected Claude Code CLI — using your subscription.")
+                client = ClaudeCodeCLI(effort=effort)
+                logger.info("LLM: Claude Code CLI detected (effort=%s).", effort)
                 return client
             except Exception as exc:
                 logger.warning("Claude Code CLI present but failed to init: %s", exc)
@@ -347,6 +356,7 @@ def get_llm(prefer: str = "auto") -> LLM:
 
 __all__ = [
     "DEFAULT_MODEL",
+    "EFFORT_LEVELS",
     "LLM",
     "AnthropicAPI",
     "ClaudeCodeCLI",
