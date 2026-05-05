@@ -24,10 +24,21 @@ slide carries short anchors. Specifically:
   les imaginaires. Elle brouille front et arrière, abolit la frontière entre
   combattants et civils, fait de la propagande une arme à part entière."
   RIGHT: "Une matrice du XXᵉ siècle." + 3 short bullets.
+
+- EVERY WORD MUST BE LOAD-BEARING. The bar is not "is this relevant?" — it's
+  "would the slide be visibly worse if I cut this?" If you can cut a clause,
+  cut it. Examples of pertinent-but-cuttable text that hurts the deck:
+    × "Les usines civiles sont mobilisées en grande quantité." → "Mobilisation des usines"
+    × "Une mobilisation matérielle sans précédent dans l'histoire." → "Mobilisation matérielle"
+    × "Les femmes investissent les usines (« munitionnettes »), les transports,
+       les hôpitaux. Elles assurent la continuité du pays pendant que les
+       hommes sont au front."
+        → "Femmes : usines, transports, hôpitaux."
+  The speaker fills in the explanation. The slide carries the anchor.
+
 - Conclusion slides: ONE takeaway sentence (≤14 words) OR ≤4 short bullets
   (≤8 words each). Never a full prose paragraph.
-- Body bullets: short fragments, NOT sentences. "Mobilisation des usines"
-  beats "Les usines civiles sont mobilisées en grande quantité."
+- Body bullets: short fragments, NOT sentences. ≤9 words per bullet, ideally 5-7.
 - Quote panels: ONLY the quote + a one-line source. NO concept-eyebrow
   above the quote (no "« BRUTALISATION »" or "« BOURRAGE DE CRÂNE »"
   caption — the quote IS the concept). NO explanatory paragraph below
@@ -43,6 +54,32 @@ slide carries short anchors. Specifically:
 
 When in doubt, ask: "Could the presenter say this aloud while pointing at
 the slide?" If yes, REMOVE it from the slide and assume it'll be spoken.
+
+SECTION DIVIDER VARIETY (CRITICAL — no Grand-I / Grand-II / Grand-III tic)
+=========================================================================
+A 10-slide deck typically has 2–4 section dividers. They MUST use DIFFERENT
+compositional patterns. The single most-flagged tic is using "giant Roman
+numeral on the left + title beside it on the right" for ALL section
+dividers. NEVER do this. Pick a different pattern per divider — examples:
+
+  Divider A: oversized roman numeral (180-360pt) on the left, part label
+             eyebrow + title on the right. ← classic but use AT MOST ONCE.
+  Divider B: full-bleed dark color block, the title centered in the lower
+             third, a chronology mark or page-number tab top-right.
+  Divider C: numbered tab in the margin (e.g. "01 / III") + a one-line
+             section title in display serif italic, lots of whitespace.
+  Divider D: oversized arabic number outline (just the contour, like "02"
+             at 240pt), title small below in caps with charSpacing.
+  Divider E: ornamented frame (hairline rules at the corners), title
+             centered with double leading, eyebrow above and chronology below.
+  Divider F: split panel — left half ink, right half paper, the title
+             straddling the seam with mix-blend-mode.
+  Divider G: a single hand-drawn motif (curved line, organic shape) +
+             title aligned to it; no number, just the section's title.
+
+Pick a different pattern per divider. The deck's signature is a recurring
+ACCENT (a thin rust bar, a charSpacing eyebrow style) — NOT a recurring
+divider layout.
 
 DESIGN PHILOSOPHY (NON-NEGOTIABLE)
 ==================================

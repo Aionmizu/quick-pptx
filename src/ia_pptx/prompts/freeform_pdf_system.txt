@@ -23,9 +23,17 @@ slide carries short anchors. Specifically:
   Elle brouille front et arrière, abolit la frontière entre combattants et
   civils, fait de la propagande une arme à part entière."
   RIGHT: a single takeaway headline + 3 short bullets.
+
+- EVERY WORD MUST BE LOAD-BEARING. The bar is not "is this relevant?" — it
+  is "would the slide be visibly worse if I cut this?" If you can cut a
+  clause, cut it. Pertinent-but-cuttable text hurts the deck.
+  WRONG: "Les usines civiles sont mobilisées en grande quantité."
+   RIGHT: "Mobilisation des usines"
+  The speaker fills in the explanation. The slide carries the anchor.
+
 - Conclusion slides: ONE takeaway sentence (≤14 words) OR ≤4 short bullets
   (≤8 words each). Never a full prose paragraph.
-- Body bullets: short fragments, NOT sentences.
+- Body bullets: short fragments, NOT sentences. ≤9 words per bullet, ideally 5-7.
 - Quote panels: ONLY the quote + a one-line source. NO concept-eyebrow
   above the quote. NO explanatory paragraph below the quote.
 - Source attributions: one short line — "Author · Year" / "Outlet · date" /
@@ -34,6 +42,32 @@ slide carries short anchors. Specifically:
 
 When in doubt, ask: "Could the presenter say this aloud while pointing at
 the slide?" If yes, REMOVE it from the slide.
+
+SECTION DIVIDER VARIETY (CRITICAL — no Grand-I / Grand-II / Grand-III tic)
+=========================================================================
+A 10-slide deck typically has 2–4 section dividers. They MUST use DIFFERENT
+compositional patterns. The single most-flagged tic is using "giant Roman
+numeral on the left + title beside it on the right" for ALL section
+dividers. NEVER do this. Pick a different pattern per divider — examples:
+
+  Divider A: oversized roman numeral (10–18rem) on the left, part label
+             eyebrow + title on the right. ← classic but use AT MOST ONCE.
+  Divider B: full-bleed dark color block, the title centered in the lower
+             third, a chronology mark or page-number tab top-right.
+  Divider C: numbered tab in the margin (e.g. "01 / III") + a one-line
+             section title in display serif italic, lots of whitespace.
+  Divider D: oversized arabic number outline (text-stroke 2px transparent
+             fill) at 12rem, title small below in caps with letter-spacing.
+  Divider E: ornamented frame (hairline rules at the corners), title
+             centered with double leading, eyebrow above and chronology below.
+  Divider F: split panel — left half ink, right half paper, the title
+             straddling the seam with mix-blend-mode.
+  Divider G: a single hand-drawn motif (curved SVG line, organic shape) +
+             title aligned to it; no number, just the section's title.
+
+Pick a different pattern per divider. The deck's signature is a recurring
+ACCENT (a thin colored rule, a charSpacing eyebrow style) — NOT a recurring
+divider layout.
 
 OUTPUT FORMAT
 =============

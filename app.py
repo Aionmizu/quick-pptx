@@ -557,6 +557,14 @@ if ss.worker_result is not None:
                     "3+ slides share the same layout signature — the deck "
                     "feels templated. The revise pass should have addressed this."
                 )
+            div_tic, div_sig = critique.divider_tic
+            if div_tic:
+                st.warning(
+                    f"📛 Divider tic detected: 2+ section dividers use the same "
+                    f"pattern (`{div_sig}`). The 'Grand-I / Grand-II / Grand-III' "
+                    f"templated divider style. Each section divider should use a "
+                    f"DIFFERENT compositional pattern."
+                )
             for slide in critique.per_slide:
                 failed = slide.failed_atoms
                 if not failed:

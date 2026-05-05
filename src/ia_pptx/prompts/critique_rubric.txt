@@ -63,11 +63,21 @@ THE 10 ATOMS:
    editorial grid, marginalia → PASS. Plain "title above bullets" → FAIL.
    Evidence: describe the composition pattern in 5 words.
 
-9. no_speaker_paragraph
-   The slide does NOT contain a multi-sentence paragraph that the presenter
-   would say aloud. Body text is fragments, guideposts, or short captions —
-   not running prose.
-   Evidence: quote the longest body text and assess (≤2 sentences = pass).
+9. every_word_essential
+   STRICTER than "no multi-sentence paragraphs". Each text fragment on the
+   slide must be LOAD-BEARING: removing it would make the slide visibly
+   worse. Pertinent-but-cuttable text fails this atom.
+   PASS if: bullets are concise fragments (≤9 words each); no explanatory
+     clause below quotes/sources; no "supplementary" sentences that the
+     speaker would say aloud; no body text that paraphrases or restates the
+     title.
+   FAIL if: any single text element is a multi-sentence paragraph; OR a
+     bullet/caption exceeds ~12 words AND could be cut to a fragment; OR
+     the slide contains a "filler" line that re-states what's already implied.
+   Evidence: quote the WORST OFFENDING text element (the longest one) and
+     suggest the cut, e.g. "BAD: 'Les usines civiles sont mobilisées en grande
+     quantité' → CUT TO: 'Mobilisation des usines'". If clean, quote the
+     longest bullet as proof of fragment-style.
 
 10. terse_sources
     If the slide cites a source, attribution, or quote source, the citation
@@ -87,8 +97,15 @@ in any order). Use the EXACT atom names listed.
     {"name": "title_is_conclusion", "passed": true|false, "evidence": "<short>"},
     ... 10 atoms total ...
   ],
-  "layout_signature": "<3–5 word description of layout pattern, used to
-                       detect templated repetition across slides>",
+  "layout_signature": "<3–6 word description that DISTINGUISHES this slide
+                       from generic 'title-top'. For section dividers, name
+                       the divider sub-pattern explicitly: 'giant-roman-numeral-
+                       beside-title' / 'full-bleed-color-block-centered-title' /
+                       'margin-numeric-tab-italic-title' / 'arabic-number-outline-
+                       caps-below' / 'split-panel-mix-blend' / 'ornament-frame-
+                       leaded-title' / 'hand-drawn-motif-aligned-title' / etc.
+                       The aggregator detects when 2+ section dividers share
+                       the same sub-pattern and flags it as a templated tic.">,
   "notes": "<one sentence summarizing the strongest fix needed, or 'clean.'>"
 }
 

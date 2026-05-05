@@ -43,8 +43,28 @@ REQUIRED_ATOMS = (
     "focal_visual_30pct",
     "body_legible",
     "distinct_composition",
-    "no_speaker_paragraph",
+    "every_word_essential",  # sharpened: not just "no paragraph", load-bearing
     "terse_sources",
+)
+
+# Backward-compat: old critiques may use "no_speaker_paragraph" — accept it
+# under the new atom name during parsing.
+_ATOM_RENAMES: dict[str, str] = {
+    "no_speaker_paragraph": "every_word_essential",
+}
+
+# Tokens that mark a layout signature as a section-divider pattern (used
+# to detect the "Grand-I / Grand-II / Grand-III" templated tic).
+_DIVIDER_TOKENS = (
+    "divider",
+    "roman",
+    "numeral",
+    "section-opener",
+    "chapter",
+    "part-",
+    "arabic-number",
+    "giant-number",
+    "giant-roman",
 )
 
 
@@ -92,11 +112,34 @@ class DeckCritique:
 
     @property
     def repeated_signatures(self) -> bool:
-        """True if the deck has 3+ slides sharing the same layout signature."""
+        """True if 3+ slides anywhere share the same layout signature."""
         from collections import Counter
 
         sigs = Counter(s.layout_signature.lower() for s in self.per_slide if s.layout_signature)
         return any(count >= 3 for count in sigs.values())
+
+    @property
+    def divider_tic(self) -> tuple[bool, str]:
+        """True if 2+ section-divider slides share the same divider sub-pattern.
+
+        This catches the "Grand-I + title-beside / Grand-II + title-beside /
+        Grand-III + title-beside" templated tic the user explicitly flagged.
+        """
+        from collections import Counter
+
+        divider_sigs = [
+            s.layout_signature.lower()
+            for s in self.per_slide
+            if s.layout_signature
+            and any(tok in s.layout_signature.lower() for tok in _DIVIDER_TOKENS)
+        ]
+        if not divider_sigs:
+            return (False, "")
+        sig_counts = Counter(divider_sigs)
+        worst_sig, worst_count = sig_counts.most_common(1)[0]
+        if worst_count >= 2:
+            return (True, worst_sig)
+        return (False, "")
 
     def summary_line(self) -> str:
         cnt = sum(len(s.failed_atoms) for s in self.per_slide)
@@ -123,6 +166,10 @@ def _parse_atoms(raw_atoms: object) -> list[AtomScore]:
         if not isinstance(item, dict):
             continue
         name = str(item.get("name", "")).strip()
+        # Translate any legacy/aliased names (e.g. "no_speaker_paragraph"
+        # → "every_word_essential") so the rubric can evolve without
+        # breaking persisted .critique.json files.
+        name = _ATOM_RENAMES.get(name, name)
         if not name or name in seen:
             continue
         seen.add(name)
@@ -206,6 +253,31 @@ def critique_revise_payload(critique: DeckCritique) -> list[dict]:
                 ),
             }
         )
+    has_div_tic, div_sig = critique.divider_tic
+    if has_div_tic:
+        bugs.append(
+            {
+                "slide_index": 0,
+                "type": "critique_divider_tic",
+                "description": (
+                    f"2+ section dividers use the SAME pattern ({div_sig!r}). "
+                    "This is the 'Grand-I / Grand-II / Grand-III' templated tic. "
+                    "Each section divider must use a DIFFERENT compositional pattern."
+                ),
+                "fix_hint": (
+                    "Pick a different divider pattern per section. Mix: "
+                    "(A) giant roman numeral + title-beside (use AT MOST ONCE); "
+                    "(B) full-bleed color block + centered title; "
+                    "(C) margin numeric tab + italic serif title + lots of whitespace; "
+                    "(D) arabic-number outline (text-stroke) + caps title below; "
+                    "(E) ornament frame + leaded title; "
+                    "(F) split panel (ink/paper) + title straddling the seam; "
+                    "(G) hand-drawn motif + title aligned to it. "
+                    "The deck's signature is a recurring ACCENT (rust bar, eyebrow), "
+                    "NOT a recurring divider layout."
+                ),
+            }
+        )
     return bugs
 
 
@@ -243,6 +315,14 @@ _FIX_HINTS: dict[str, str] = {
         "asymmetric panel, oversized numeral, pull quote, multi-column grid, "
         "big-number stat zone, full-bleed photo, editorial gutter, marginalia."
     ),
+    "every_word_essential": (
+        "Cut every word that isn't load-bearing. The bar is not 'is this "
+        "relevant?' but 'would the slide be visibly worse if I cut this?'. "
+        "WRONG: 'Les usines civiles sont mobilisées en grande quantité.' "
+        "RIGHT: 'Mobilisation des usines'. Bullets ≤9 words; no clarifying "
+        "clause that the speaker would say aloud."
+    ),
+    # Legacy alias — kept so old persisted critiques still get a hint.
     "no_speaker_paragraph": (
         "Cut the multi-sentence paragraph. The presenter says it aloud — the "
         "slide carries fragments. Replace with 2–4 short bullets or a single "
