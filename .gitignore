@@ -99,6 +99,13 @@ out/
 *.png
 !docs/**/*.png
 !docs/assets/*.png
+*.pdf
+*.critique.json
+# Carte-blanche test files Claude Code may dump at the repo root.
+# `scripts/freeform_helpers.js` is the legitimate exception we DO want tracked.
+deck-test.js
+deck_freeform.js
+deck_freeform.html
 
 # Skill bundle build output
 dist/
