@@ -1,184 +1,129 @@
 # ia-pptx-generator
 
-![ten generated decks side-by-side, each showing a distinct layout grid and design style](docs/assets/hero-gallery.png)
+**Editorial-grade decks via Claude + visual QA loop.** Claude writes the deck source code directly (pptxgenjs JS for editable `.pptx`, or HTML/CSS for publication-quality `.pdf`). A vision pass renders each slide to an image, spots rendering bugs, and asks Claude to revise. Bounded to 3 iterations. No fixed templates.
 
-**AI-generated PowerPoint decks that don't look AI-generated.**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · No signup · No telemetry · Free forever · Built on [`ui-ux-pro-max`](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · No signup · No telemetry · Free forever
 
 ---
+
+## Why this exists
+
+Most "AI deck" tools settle for "title + bullets, repeated 10×, with a corporate palette." This one composes per-slide — eyebrows, oversized numerals, pull quotes, real grids, web fonts, recurring motifs — by letting Claude write the deck *as code*, then catching its layout mistakes via a vision feedback loop. The result is closer to a published textbook spread than a corporate template.
+
+## Two output paths
+
+| Path | Format | Substrate | Editable | Visual ceiling |
+|---|---|---|---|---|
+| `generate` | `.pptx` | pptxgenjs (Node.js) | ✅ in PowerPoint/Keynote | High |
+| `generate-pdf` | `.pdf` | HTML/CSS via WeasyPrint | ❌ | Highest (web fonts, gradients, transforms) |
+
+Both share: per-slide composition, theme-aware palettes, a 3-pass visual QA self-heal loop, and the same LLM abstraction (Anthropic API or Claude Code CLI subprocess).
 
 ## Install
 
-### Claude Code (one command)
-
 ```bash
-# (placeholder until skill marketplace publishing — see CONTRIBUTING.md for the manual install path)
-git clone https://github.com/USERNAME/ia-pptx-generator
-# Then point Claude Code at skills/ia-pptx/ as a local skill.
+git clone https://github.com/Aionmizu/quick-pptx
+cd quick-pptx
+pip install -e ".[dev]"
+
+# Node + pptxgenjs (only needed for the .pptx pipeline)
+npm install
+
+# External tools (Linux example — equivalents exist for macOS/Windows)
+sudo pacman -S libreoffice poppler  # for soffice + pdftoppm
 ```
 
-### claude.ai (skills upload)
+## Authenticate
+
+Two options — pick one:
+
+- **Claude Code subscription (recommended)** — if you have `claude` on PATH, the pipeline shells out to it via `claude -p` and uses your subscription. No API key needed.
+- **Anthropic API key** — paste it once via:
+  ```bash
+  python3 -m ia_pptx login
+  ```
+  Saved at `~/.config/ia-pptx/credentials.json` (mode 0600).
+
+The pipeline auto-picks Claude Code if available, otherwise falls back to API. Force one with `--llm code` or `--llm api`.
+
+## Generate
 
 ```bash
-# Build the skill bundle
-python3 scripts/build_skill_bundle.py
-# Upload dist/ia-pptx-skill.zip via claude.ai's Skills panel.
+# Editable .pptx
+python3 -m ia_pptx generate \
+  --prompt "A 10-slide history exposé on the French Revolution for a high-school class" \
+  --output out/revolution.pptx \
+  --length 10
+
+# Publication PDF
+python3 -m ia_pptx generate-pdf \
+  --prompt "A 10-slide history exposé on the French Revolution for a high-school class" \
+  --output out/revolution.pdf \
+  --length 10
 ```
 
-### Authenticating (Streamlit only — skill paths inherit Claude's session)
+After the run you'll find:
+- The deck file at `--output`
+- Per-slide JPGs alongside it (visual QA artifacts you can inspect)
+- The deck source code (JS for `.pptx`, HTML for `.pdf`) in the same folder, readable and modifiable
+
+## Streamlit (local web app)
 
 ```bash
-python3 -m ia_pptx login    # opens Anthropic console, you paste your key
-python3 -m ia_pptx status   # show where the key is loaded from
-python3 -m ia_pptx logout   # remove the local credentials file
-```
-
-Resolution order: **`.env` (repo) → `~/.config/ia-pptx/credentials.json` → `ANTHROPIC_API_KEY` env var**. The login command stores the key with mode `0600` permissions.
-
-### Streamlit (local web app, bring your own key)
-
-<details>
-<summary>Detailed walkthrough for non-developers (click to expand)</summary>
-
-This walkthrough assumes no prior Python knowledge. It will get you from a fresh machine to a working local web app.
-
-**1. Install Python 3.11 or newer.** If you don't already have Python, download it from [python.org](https://www.python.org/downloads/) — pick the latest 3.11+ installer for your OS. Python is needed to run Streamlit; this is a one-time install.
-
-**2. Clone the project.** Open a terminal and run:
-
-```bash
-git clone https://github.com/USERNAME/ia-pptx-generator
-cd ia-pptx-generator
-```
-
-**3. Install dependencies.** From the project directory:
-
-```bash
-# Recommended — install all optional extras (Streamlit + WeasyPrint renderer):
-pip install -e ".[all]"
-
-# Or just the Streamlit surface and the python-pptx renderer:
 pip install -e ".[streamlit]"
-```
-
-This installs `streamlit`, `python-pptx`, `anthropic`, `weasyprint`, `jinja2`, and a few helpers. It's a one-time step.
-
-**Optional — for the pptxgenjs renderer (richer editable .pptx design):**
-
-```bash
-# Install Node.js 20+ from https://nodejs.org if you don't have it.
-npm install                # picks up pptxgenjs declared in package.json
-```
-
-**Optional — system deps for WeasyPrint (Linux):**
-
-```bash
-# Debian/Ubuntu
-sudo apt install libpango-1.0-0 libpangoft2-1.0-0
-# macOS
-brew install pango
-```
-
-**4. Get an Anthropic API key.** Sign up at [console.anthropic.com](https://console.anthropic.com/settings/keys), create a key, and copy it (top-right menu → **API Keys** → **Create Key** → copy the `sk-ant-...` value). Usage charges go to your Anthropic account, not to this project.
-
-**5. Save the key locally.** Pick the option that suits you:
-
-```bash
-# Option A (recommended) — interactive login.
-# Opens the Anthropic console in your browser, you paste the key,
-# and it's saved to ~/.config/ia-pptx/credentials.json (mode 0600).
-python3 -m ia_pptx login
-
-# Option B — repo-local .env file (good for project-only scoping).
-cp .env.example .env
-# then edit .env and replace the placeholder ANTHROPIC_API_KEY value.
-
-# Option C — process environment (transient; only this terminal).
-export ANTHROPIC_API_KEY="sk-ant-..."             # macOS / Linux
-$env:ANTHROPIC_API_KEY = "sk-ant-..."              # Windows PowerShell
-set ANTHROPIC_API_KEY=sk-ant-...                   # Windows CMD
-```
-
-The Streamlit app and skill scripts resolve the key in this order: **`.env` (repo) → `~/.config/ia-pptx/credentials.json` → `ANTHROPIC_API_KEY` env var**. Use `python3 -m ia_pptx status` to see which sources are present.
-
-**6. Run the app.** From the project directory:
-
-```bash
 streamlit run app.py
 ```
 
-Your browser opens at `http://localhost:8501`. Type a prompt, click **Generate deck**, and download the `.pptx` when it's ready. To stop the server, press `Ctrl+C` in the terminal.
+Open the local URL Streamlit prints. Pick `.pptx` or `.pdf`, describe the deck, click Generate. Per-slide JPGs render inline once the run finishes.
 
-#### Troubleshooting
+## Architecture
 
-- **"`streamlit: command not found`"** — Streamlit isn't on your `PATH`. Run `python3 -m streamlit run app.py` instead, or activate the virtual environment first.
-- **"`No module named ia_pptx`"** — the editable install didn't complete. From the project directory, re-run `pip install -e ".[streamlit]"` and try again.
-- **"No Anthropic API key found" banner stays visible** — none of the three sources is set. Easiest fix: run `python3 -m ia_pptx login` once and paste the key. Verify with `python3 -m ia_pptx status`.
-- **"Permission denied" on macOS** — try a virtual environment: `python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[streamlit]"`.
-- **Port 8501 already in use** — another Streamlit app is running. Either stop it, or run on a different port: `streamlit run app.py --server.port 8502`.
-
-If something else goes wrong, file an issue with the exact terminal output — the maintainer or another contributor can usually help quickly.
-
-</details>
-
-## How it works
-
-You type what your deck is about. Claude — armed with a vendored copy of [`ui-ux-pro-max`](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)'s 60+ design styles — commits to a layout grid, section structure, hierarchy, and content density *before* drafting any slide. The renderer emits a native `.pptx` you can open and edit in PowerPoint, Keynote, or Google Slides. No template catalog, no rasterization.
-
-![architecture diagram showing user prompt flowing to Claude, Claude consulting vendored ui-ux-pro-max design library, ia_pptx.core orchestrator and renderer producing a local .pptx file with no telemetry or third-party servers](docs/assets/architecture-diagram.svg)
-
-## Example prompts
-
-These five prompts are part of the canonical falsification corpus (see `src/ia_pptx/eval/corpus.yml`). Each produces a structurally distinct deck:
-
-| Use case | Prompt |
-|---|---|
-| Student exposé | *"An exposé about the French Revolution for a high-school history class, ~12 slides."* |
-| Professional pitch | *"A 15-minute pitch deck for a B2B SaaS product launching in Q3, audience is procurement leaders."* |
-| Research summary | *"A 10-slide summary of a recent paper on retrieval-augmented generation for a journal club."* |
-| Project update | *"A 6-slide project status update for a quarterly leadership review — no fluff."* |
-| Conference talk | *"A 20-minute conference talk on humane software design, audience is design-leaning engineers."* |
-
-Run the corpus yourself:
-
-```bash
-python3 -m ia_pptx.eval.falsification
+```
+prompt → LLM (Opus 4.7) writes deck source code
+       → execute (Node for .pptx, WeasyPrint for .pdf)
+       → libreoffice/pdftoppm → JPGs
+       → LLM vision inspects each JPG, lists bugs as JSON
+       → if bugs: LLM revises the source code, re-run
+       → bounded to 3 iterations max
 ```
 
-Output: 10 decks in `out/falsification/` plus a layout-grid distribution report. The check fails if any single layout grid recurs in more than 3 of 10 decks — the wedge regression test.
+Key design choices:
 
-## What this is and isn't
+- **No JSON intermediate, no fixed layouts.** Claude has full creative control. Every slide is custom-composed.
+- **Visual QA loop self-heals.** Pathological CSS (e.g., 3-level nested grids that hang WeasyPrint) gets caught by a hard timeout, surfaced as a "bug," and Claude fixes it.
+- **LLM swappable.** Anthropic API or Claude Code CLI subprocess — same interface. Claude Code uses your subscription, no API top-up.
+- **Theme-appropriate palettes.** Claude picks a palette that fits the subject (sober archival for WW1, modern tech for startup pitch, earth tones for nature). The system prompt defines vocabulary; Claude composes per deck.
 
-**This project does:**
+## Project layout
 
-- Generate visually distinctive decks from a prompt across at least 4 layout grids (single-column, two-up, asymmetric, bento) and 60+ styles from the vendored design library.
-- Output native, editable `.pptx` (text stays editable in PowerPoint).
-- Work in any natural language Claude supports (English, French, Spanish, German, etc.).
-- Run on the user's own Claude subscription or Anthropic API key.
+```
+src/ia_pptx/
+  core/
+    _llm.py            # AnthropicAPI + ClaudeCodeCLI backends
+    freeform.py        # pptxgenjs pipeline
+    freeform_pdf.py    # WeasyPrint pipeline
+    exceptions.py
+  prompts/             # 5 system prompts (gen + revise + visual_qa, × pptx/pdf)
+  auth.py              # API key resolution
+  __main__.py          # CLI
 
-**This project does NOT:**
+scripts/
+  freeform_helpers.js  # reusable pptxgenjs helpers Claude can require
+  build_skill_bundle.py
 
-- Edit existing decks (a sibling iteration skill is planned).
-- Import brand assets (planned post-MVP).
-- Make up real data — AI-generated numbers are plausibly fabricated. Verify or supply your own.
-- Send any data anywhere except your prompt to Anthropic. No telemetry. No analytics. No accounts.
+skills/ia-pptx/        # Claude skill bundle (uploadable to claude.ai)
 
-## Trust
+app.py                 # Streamlit web app
+```
 
-- **MIT licensed.** See [`LICENSE`](LICENSE) and [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
-- **No signup, no quota.** Cost (if any) is your existing Claude subscription or your own Anthropic API tokens.
-- **No telemetry.** The skill makes no network calls beyond what Claude itself performs. The Streamlit app's only network destination is `api.anthropic.com` using your key. Verifiable by source-code inspection.
-- **Vendored upstream:** [`ui-ux-pro-max`](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) (MIT, by nextlevelbuilder).
+## Status
 
-## Contributing
+v0.2 — pivoted from a templated 4-layout pipeline to the freeform + visual QA architecture. Significantly higher visual ceiling, fewer moving parts.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). New contributors should be able to clone, run tests, and submit a focused PR within an hour. Issues labeled `good-first-issue` are a good entry point.
+Future:
+- Re-incorporate `ui-ux-pro-max` design intelligence as palette + typography presets the prompts can reference contextually.
+- Image strategy via Unsplash/Pexels APIs for full-bleed photo backgrounds.
 
 ## License
 
-[MIT](LICENSE).
-
----
-
-> Built by Florian as a student fed up with classmates' decks all looking the same.
+MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

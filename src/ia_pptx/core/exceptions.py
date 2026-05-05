@@ -1,8 +1,4 @@
-"""Typed exceptions for module-boundary error handling.
-
-Per the architecture's implementation patterns: errors at module boundaries
-raise specific exceptions, never bare `Exception` or `RuntimeError`.
-"""
+"""Typed exceptions for module-boundary error handling."""
 
 from __future__ import annotations
 
@@ -20,8 +16,8 @@ class InvalidPrompt(IaPptxError):
 
 
 class GenerationFailed(IaPptxError):
-    """Claude returned an unusable response or generation logic failed."""
+    """LLM returned an unusable response or generation logic failed."""
 
 
 class RenderFailed(IaPptxError):
-    """python-pptx rendering raised or produced an invalid file."""
+    """Rendering pipeline (Node/pptxgenjs or WeasyPrint) failed."""

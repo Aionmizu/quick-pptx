@@ -32,6 +32,8 @@ workflowType: 'ux-design'
 
 # UX Design Specification — IA-pptx-generator
 
+> ⚠️ **SUPERSEDED IN PARTS BY THE v0.2 PIVOT.** Streamlit screens that referenced renderer choice (python-pptx / pptxgenjs / WeasyPrint), "I have a plan" mode, key takeaway, audience, style hint chips, forced style picker, language selector, deck length slider, advanced expander, and rasterized preview thumbnails — superseded. v0.2 Streamlit has: prompt textarea, output format (`.pptx` or `.pdf`), slide count, QA passes, optional LLM-backend expander, and inline per-slide JPG preview rendered from the actual output. Loading state copy is now driven by phase strings emitted by the pipeline's progress callback. See [`../PIVOT-2026-05.md`](../PIVOT-2026-05.md).
+
 **Author:** Florian
 **Date:** 2026-05-05
 

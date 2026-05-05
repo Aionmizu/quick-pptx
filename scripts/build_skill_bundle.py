@@ -24,6 +24,9 @@ DIST_PATH = DIST_DIR / f"{BUNDLE_NAME}.zip"
 INCLUDES: list[tuple[Path, str]] = [
     (REPO_ROOT / "skills" / "ia-pptx" / "SKILL.md", "SKILL.md"),
     (REPO_ROOT / "skills" / "ia-pptx" / "scripts" / "generate.py", "scripts/generate.py"),
+    (REPO_ROOT / "scripts" / "freeform_helpers.js", "scripts/freeform_helpers.js"),
+    (REPO_ROOT / "package.json", "package.json"),
+    (REPO_ROOT / "package-lock.json", "package-lock.json"),
     (REPO_ROOT / "LICENSE", "LICENSE"),
     (REPO_ROOT / "THIRD_PARTY_LICENSES.md", "THIRD_PARTY_LICENSES.md"),
 ]

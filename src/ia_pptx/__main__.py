@@ -1,15 +1,17 @@
-"""CLI entry point: `python3 -m ia_pptx <command>` or `ia-pptx <command>`.
+"""CLI: `python3 -m ia_pptx <command>`.
 
 Subcommands:
-- login          Interactive: open Anthropic console, paste key, save locally
-- logout         Remove the locally-stored credentials file
-- status         Show where the API key would be loaded from
-- generate       Generate a deck from a prompt (skill-style invocation)
+- login          Interactive: paste Anthropic API key, save locally.
+- logout         Remove the locally-stored credentials file.
+- status         Show where the API key would be loaded from.
+- generate       Generate an editable .pptx via the freeform pptxgenjs pipeline.
+- generate-pdf   Generate a publication-quality .pdf via the freeform WeasyPrint pipeline.
 """
 
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -45,32 +47,65 @@ def _cmd_status(_args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_generate(args: argparse.Namespace) -> int:
-    from ia_pptx.core import generate
-    from ia_pptx.core.types import Hints
+def _print_result(deck_path: Path, iterations: int, last_bugs: list, jpgs: list[Path]) -> None:
+    print(f"Deck: {deck_path}")
+    print(f"Iterations: {iterations}")
+    print(f"Final-pass bugs (unfixed): {len(last_bugs)}")
+    if last_bugs:
+        print("Remaining bugs:")
+        for bug in last_bugs:
+            slide = bug.get("slide_index", "?")
+            kind = bug.get("type", "?")
+            desc = bug.get("description", "")
+            print(f"  - slide {slide} [{kind}] {desc}")
+    if jpgs:
+        print(f"Per-slide JPGs: {len(jpgs)} in {jpgs[0].parent}")
 
+
+def _cmd_generate(args: argparse.Namespace) -> int:
+    from ia_pptx.core import freeform_generate
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     try:
-        path = generate(
+        result = freeform_generate(
             prompt=args.prompt,
-            hints=Hints(
-                audience=args.audience,
-                style_direction=args.style_hint,
-                deck_length=args.length,
-            ),
-            length=args.length,
-            output_path=Path(args.output) if args.output else None,
+            output_path=Path(args.output),
+            llm_pref=args.llm,
+            length_hint=args.length,
+            max_iterations=args.max_iterations,
         )
     except Exception as exc:
         print(f"Generation failed: {exc}", file=sys.stderr)
         return 1
-    print(f"Your deck is at: {path}. Open in PowerPoint to edit.")
+    last_bugs = result.bug_history[-1] if result.bug_history else []
+    _print_result(result.pptx_path, result.iterations, last_bugs, result.jpg_paths)
+    return 0
+
+
+def _cmd_generate_pdf(args: argparse.Namespace) -> int:
+    from ia_pptx.core import freeform_pdf_generate
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    try:
+        result = freeform_pdf_generate(
+            prompt=args.prompt,
+            output_path=Path(args.output),
+            llm_pref=args.llm,
+            length_hint=args.length,
+            max_iterations=args.max_iterations,
+        )
+    except Exception as exc:
+        print(f"PDF generation failed: {exc}", file=sys.stderr)
+        return 1
+    last_bugs = result.bug_history[-1] if result.bug_history else []
+    _print_result(result.pdf_path, result.iterations, last_bugs, result.jpg_paths)
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="ia-pptx",
-        description="AI-generated PowerPoint decks that don't look AI-generated.",
+        description="AI-generated decks that don't look AI-generated.",
     )
     parser.add_argument("--version", action="version", version=f"ia-pptx {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -89,17 +124,37 @@ def main() -> int:
     p_status = sub.add_parser("status", help="Show where credentials would be loaded from.")
     p_status.set_defaults(func=_cmd_status)
 
-    p_gen = sub.add_parser("generate", help="Generate a deck from a prompt.")
-    p_gen.add_argument("--prompt", required=True, help="The deck prompt.")
-    p_gen.add_argument("--length", type=int, default=10, help="Number of slides (default 10).")
-    p_gen.add_argument("--audience", default=None, help="Optional audience hint.")
-    p_gen.add_argument(
-        "--style-hint",
-        default=None,
-        choices=["Auto", "More formal", "More dynamic", "More minimalist"],
+    def _add_freeform_args(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--prompt", required=True, help="The deck topic.")
+        p.add_argument("--length", type=int, default=None, help="Optional target slide count.")
+        p.add_argument("--output", required=True, help="Output file path.")
+        p.add_argument(
+            "--llm",
+            default="auto",
+            choices=["auto", "code", "api"],
+            help="auto (default): Claude Code CLI if available, else API. "
+            "code: force CLI. api: force API key.",
+        )
+        p.add_argument(
+            "--max-iterations",
+            type=int,
+            default=3,
+            help="Max revise loops if visual QA finds bugs (default 3).",
+        )
+
+    p_gen = sub.add_parser(
+        "generate",
+        help="Generate editable .pptx (pptxgenjs + visual QA loop).",
     )
-    p_gen.add_argument("--output", default=None, help="Optional output path.")
+    _add_freeform_args(p_gen)
     p_gen.set_defaults(func=_cmd_generate)
+
+    p_pdf = sub.add_parser(
+        "generate-pdf",
+        help="Generate publication-quality .pdf (WeasyPrint HTML/CSS + visual QA loop).",
+    )
+    _add_freeform_args(p_pdf)
+    p_pdf.set_defaults(func=_cmd_generate_pdf)
 
     args = parser.parse_args()
     return int(args.func(args))

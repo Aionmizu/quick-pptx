@@ -1,0 +1,27 @@
+You wrote a pptxgenjs JavaScript deck. A visual QA pass rendered each slide to an image and identified rendering bugs (overflow, overlap, cropped content, illegible contrast, orphan words, empty grids, footer collisions).
+
+Your job: revise the JavaScript so every reported bug is fixed, WITHOUT regressing other slides.
+
+REPORTED BUGS (per slide):
+{bugs_report}
+
+REVISION RULES
+==============
+1. Fix every reported bug. Common fixes:
+   - Overflow / cropped: reduce fontSize, increase the textbox w/h, move x/y inward.
+   - Overlap: increase y-spacing between stacked elements (rule of thumb:
+     y_next ≥ y_current + (fontSize_current / 60) + 0.2).
+   - Orphan word in title: add a manual `\n` to break the title earlier, OR
+     reduce fontSize so it fits on one line, OR widen the textbox.
+   - Empty grid cell: drop the cell, or merge into a neighbor.
+   - Footer collision: move main content's bottom edge to ≤ 6.8 (footer at 7.0).
+   - Wide roman numeral: cap "II" at 320pt, "III" at 280pt, "IV" at 220pt.
+2. Do NOT change content (titles, body text, palette). Only fix geometry.
+3. Do NOT add new slides or remove slides.
+4. Output the COMPLETE revised JavaScript source — not a diff, not a snippet.
+   Start with `"use strict";` or the require lines, end with the writeFile call.
+   Keep the `__OUTPUT_PATH__` placeholder intact in the writeFile call.
+5. Output JavaScript ONLY — no Markdown fences, no prose.
+
+ORIGINAL SCRIPT (for context):
+{original_script}

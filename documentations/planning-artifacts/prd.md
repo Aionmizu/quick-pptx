@@ -37,6 +37,8 @@ workflowType: 'prd'
 
 # Product Requirements Document - IA-pptx-generator
 
+> ⚠️ **SUPERSEDED IN PARTS BY THE v0.2 PIVOT.** FRs that describe the templated 4-layout pipeline, the JSON outline drafter, the falsification check, "I have a plan" mode, native python-pptx rendering, and rasterized snapshots are no longer accurate — that code has been deleted. See [`../PIVOT-2026-05.md`](../PIVOT-2026-05.md) for the current architecture and FR-by-FR validity.
+
 **Author:** Florian
 **Date:** 2026-05-04
 

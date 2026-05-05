@@ -18,6 +18,8 @@ project_name: 'IA-pptx-generator'
 
 # IA-pptx-generator - Epic Breakdown
 
+> ⚠️ **SUPERSEDED IN PARTS BY THE v0.2 PIVOT.** Stories that built the templated 4-layout pipeline (`content_drafter`, `design_choices`, `renderer`, the three templated renderer backends, the falsification eval, plan mode, etc.) shipped, then their implementations were deleted. v0.2 work was done as a bulk rewrite, not story-tracked. See [`../PIVOT-2026-05.md`](../PIVOT-2026-05.md). The valid stories from this epic plan: `auth.py`, Streamlit base shell, `.env` + `~/.config/ia-pptx/credentials.json` resolution, ui-ux-pro-max vendoring (data only).
+
 ## Overview
 
 This document provides the complete epic and story breakdown for IA-pptx-generator, decomposing the requirements from the PRD, UX Design Specification, and Architecture document into implementable stories.

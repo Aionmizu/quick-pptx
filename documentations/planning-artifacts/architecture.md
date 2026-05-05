@@ -8,7 +8,8 @@ stepsCompleted:
   - step-06-structure
   - step-07-validation
   - step-08-complete
-status: complete
+status: superseded-by-pivot
+supersededBy: ../PIVOT-2026-05.md
 completedAt: "2026-05-05"
 lastStep: 8
 inputDocuments:
@@ -30,6 +31,8 @@ date: '2026-05-05'
 ---
 
 # Architecture Decision Document — IA-pptx-generator
+
+> ⚠️ **SUPERSEDED IN PARTS BY THE v0.2 PIVOT.** Sections describing the templated 4-layout pipeline (`renderer.py`, `content_drafter.py`, `design_choices.py`, the `Hints` / `SlidePlan` / `StructuralChoices` types, the falsification eval, the layout-grid enum) describe code that has been deleted. See [`../PIVOT-2026-05.md`](../PIVOT-2026-05.md) for the current architecture and a per-section list of what's superseded. This document is preserved for historical context.
 
 _This document builds collaboratively through step-by-step discovery. Sections are appended as we work through each architectural decision together._
 

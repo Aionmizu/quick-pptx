@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ia-pptx-generator"
-version = "0.1.0"
-description = "AI-generated PowerPoint decks that don't look AI-generated. Open-source Claude skill composing python-pptx with ui-ux-pro-max design intelligence."
+version = "0.2.0"
+description = "Editorial-grade decks via Claude + visual QA loop. Claude writes the deck source code directly (pptxgenjs JS or HTML/CSS); a vision pass spots rendering bugs and asks Claude to revise."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
   { name = "Florian" },
 ]
-keywords = ["claude", "skill", "pptx", "powerpoint", "design", "ui-ux-pro-max"]
+keywords = ["claude", "skill", "pptx", "powerpoint", "pdf", "weasyprint", "pptxgenjs"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: MIT License",
@@ -25,10 +25,9 @@ classifiers = [
 ]
 
 dependencies = [
-  "python-pptx>=0.6.21",
   "anthropic>=0.40.0",
-  "pyyaml>=6.0",
   "python-dotenv>=1.0",
+  "weasyprint>=63.0",
 ]
 
 [project.scripts]
@@ -37,35 +36,25 @@ ia-pptx = "ia_pptx.__main__:main"
 [project.optional-dependencies]
 streamlit = [
   "streamlit>=1.40",
-  "pillow>=10.0",
-]
-weasyprint = [
-  "weasyprint>=63.0",
-  "jinja2>=3.0",
-]
-all = [
-  "ia-pptx-generator[streamlit,weasyprint]",
 ]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",
   "ruff>=0.6",
   "mypy>=1.10",
-  "types-PyYAML",
-  # also pull every optional renderer in dev, so tests can exercise all backends
-  "ia-pptx-generator[streamlit,weasyprint]",
+  "ia-pptx-generator[streamlit]",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/USERNAME/ia-pptx-generator"
-"Source" = "https://github.com/USERNAME/ia-pptx-generator"
-"Issues" = "https://github.com/USERNAME/ia-pptx-generator/issues"
+"Homepage" = "https://github.com/Aionmizu/quick-pptx"
+"Source" = "https://github.com/Aionmizu/quick-pptx"
+"Issues" = "https://github.com/Aionmizu/quick-pptx/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ia_pptx"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/vendor", "/skills", "/README.md", "/LICENSE", "/THIRD_PARTY_LICENSES.md"]
+include = ["/src", "/tests", "/scripts", "/skills", "/README.md", "/LICENSE", "/THIRD_PARTY_LICENSES.md"]
 
 [tool.ruff]
 line-length = 100
@@ -96,15 +85,13 @@ ignore = [
   "RUF001", # ambiguous-unicode in strings (deliberate em/en dashes in user-facing copy)
   "RUF002", # ambiguous-unicode in docstrings
   "RUF003", # ambiguous-unicode in comments
-  "N818",   # exception name suffix (we use IaPptxError base + descriptive subclasses, no `Error` suffix)
-  "UP042",  # str+Enum vs StrEnum (we use str+Enum for backward-compat with pre-3.11 idioms in docs)
+  "N818",   # exception name suffix
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["B", "N"]
-"app.py" = ["E402"]              # sys.path manipulation must precede streamlit import
-"scripts/spike.py" = ["E402"]    # likewise for the spike harness
-"skills/**/*.py" = ["E402"]      # skill bundle scripts manipulate sys.path
+"app.py" = ["E402"]
+"skills/**/*.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -119,51 +106,22 @@ no_implicit_optional = true
 files = ["src/ia_pptx"]
 
 [[tool.mypy.overrides]]
-# Modules we own end-to-end (no python-pptx coupling): stricter checks.
 module = [
-  "ia_pptx.core.orchestrator",
-  "ia_pptx.core.design_choices",
-  "ia_pptx.core.content_drafter",
-  "ia_pptx.core.metadata",
   "ia_pptx.core.exceptions",
-  "ia_pptx.core.types",
-  "ia_pptx.core._claude_client",
+  "ia_pptx.core._llm",
+  "ia_pptx.core.freeform",
+  "ia_pptx.core.freeform_pdf",
 ]
 disallow_untyped_defs = true
 warn_return_any = true
-
-[[tool.mypy.overrides]]
-# python-pptx-coupled modules: relaxed because pptx's Length-vs-int typing is fluid.
-# (pptx's Emu() returns Length, which mypy reads as int — but add_textbox expects Length.
-# The library's own type stubs disagree with each other, so we ignore arg-type here.)
-module = [
-  "ia_pptx.core.shapes",
-  "ia_pptx.core.renderer",
-]
-disallow_untyped_defs = false
-warn_return_any = false
-disable_error_code = ["arg-type", "assignment", "no-untyped-call"]
-
-[[tool.mypy.overrides]]
-module = "ia_pptx.eval.*"
-disallow_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = "ia_pptx.design.*"
-disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
 module = "ia_pptx.prompts.*"
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["pptx.*", "anthropic.*", "PIL.*", "yaml", "streamlit", "streamlit.*", "weasyprint", "weasyprint.*", "jinja2"]
+module = ["anthropic.*", "streamlit", "streamlit.*", "weasyprint", "weasyprint.*", "dotenv"]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "ia_pptx.core.renderers.*"
-disallow_untyped_defs = false
-disable_error_code = ["arg-type", "assignment", "no-untyped-call", "return-value"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

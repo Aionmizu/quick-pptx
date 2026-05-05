@@ -1,17 +1,26 @@
 # generated: 2026-05-05
-# last_updated: 2026-05-05
+# last_updated: 2026-05-05 (frozen — see PIVOT-2026-05.md)
 # project: IA-pptx-generator
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: documentations/implementation-artifacts
 
-# All v1 stories implemented in autonomous loop on 2026-05-05.
-# - Test suite: 36 passing
-# - Lint + format + mypy: clean
-# - Skill bundle built: dist/ia-pptx-skill.zip (200 KB)
-# - Spike validated: native python-pptx path holds (see docs/spike-notes.md)
-# - GitHub Pages gallery (Story 2.5) was descoped per maintainer decision.
-# - Final naming (Story 2.10): rename script ready; awaiting Florian's name pick.
+# v1 STATUS — All stories below shipped on 2026-05-05.
+#
+# v0.2 PIVOT (same day): the templated 4-layout pipeline that most of
+# these stories built was deleted and replaced by the freeform + visual
+# QA loop architecture. See documentations/PIVOT-2026-05.md.
+#
+# Story-by-story validity post-pivot:
+#   - Stories that built renderer.py / pptx_native / pptxgenjs templated /
+#     weasyprint_html templated / content_drafter / design_choices /
+#     orchestrator / metadata / falsification eval / snapshot / outline
+#     prompts / slide_rules / plan mode → IMPLEMENTATION DELETED.
+#   - Stories that built auth.py, .env loading, ui-ux-pro-max vendoring
+#     (data only), Streamlit base shell, login flow → STILL VALID.
+#
+# v0.2 work was a bulk rewrite, not story-tracked. This file is preserved
+# at its v0.1 final state as historical record.
 
 generated: 2026-05-05
 last_updated: 2026-05-05

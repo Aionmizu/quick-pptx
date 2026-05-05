@@ -1,10 +1,11 @@
-"""ia_pptx.core — generation engine.
+"""ia_pptx.core — freeform generation engine.
 
-Public API:
-- `generate(prompt, hints, length) -> Path` — main entry point for surfaces
-- `SlidePlan`, `Hints`, `StructuralChoices` — typed inputs/outputs
-- `DesignTokens` — render-time token bundle
-- Typed exceptions for module-boundary error handling
+Two pipelines:
+- `freeform_generate` — Claude writes pptxgenjs JS + visual QA loop → editable .pptx
+- `freeform_pdf_generate` — Claude writes HTML/CSS + visual QA loop → publication-quality .pdf
+
+Both share the LLM abstraction (Anthropic API or Claude Code CLI) and the
+visual self-healing loop (render → screenshot → vision QA → revise).
 """
 
 from ia_pptx.core.exceptions import (
@@ -13,33 +14,16 @@ from ia_pptx.core.exceptions import (
     InvalidPrompt,
     RenderFailed,
 )
-from ia_pptx.core.metadata import read_choices, read_choices_dict
-from ia_pptx.core.orchestrator import generate
-from ia_pptx.core.types import (
-    ContentDensity,
-    DesignTokens,
-    HierarchyPattern,
-    Hints,
-    LayoutGrid,
-    SectionStructure,
-    SlidePlan,
-    StructuralChoices,
-)
+from ia_pptx.core.freeform import FreeformResult, freeform_generate
+from ia_pptx.core.freeform_pdf import FreeformPdfResult, freeform_pdf_generate
 
 __all__ = [
-    "ContentDensity",
     "DesignLibraryUnavailable",
-    "DesignTokens",
+    "FreeformPdfResult",
+    "FreeformResult",
     "GenerationFailed",
-    "HierarchyPattern",
-    "Hints",
     "InvalidPrompt",
-    "LayoutGrid",
     "RenderFailed",
-    "SectionStructure",
-    "SlidePlan",
-    "StructuralChoices",
-    "generate",
-    "read_choices",
-    "read_choices_dict",
+    "freeform_generate",
+    "freeform_pdf_generate",
 ]

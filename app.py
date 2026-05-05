@@ -1,15 +1,11 @@
 """Streamlit surface for ia-pptx-generator.
 
-Story 3.1–3.8 in one file: skeleton, themed via styles.css injection,
-style hint chips, deck length slider, in-flight phase narration,
-download CTA, error banners, accessibility.
-
-Architecture Decision 5: single-file `app.py` + custom CSS injection.
-No `streamlit-extras` or component-library imports.
+Two pipelines exposed:
+- Editable .pptx via freeform pptxgenjs (Claude writes JS + visual QA loop)
+- Publication-quality .pdf via freeform WeasyPrint (Claude writes HTML/CSS + QA loop)
 
 Run:
     pip install -e ".[streamlit]"
-    export ANTHROPIC_API_KEY="sk-ant-..."
     streamlit run app.py
 """
 
@@ -28,20 +24,10 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
 import streamlit as st
 
 from ia_pptx import __version__
-from ia_pptx.core import generate
-from ia_pptx.core.exceptions import (
-    DesignLibraryUnavailable,
-    GenerationFailed,
-    InvalidPrompt,
-    RenderFailed,
-)
-from ia_pptx.core.types import Hints
+from ia_pptx.auth import load_api_key
+from ia_pptx.core import freeform_generate, freeform_pdf_generate
 
 logger = logging.getLogger("ia_pptx.streamlit")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Page setup — must be the first Streamlit call
-# ─────────────────────────────────────────────────────────────────────────────
 
 st.set_page_config(
     page_title="ia-pptx-generator",
@@ -52,374 +38,137 @@ st.set_page_config(
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CSS injection — design tokens from styles.css plus Streamlit-specific overrides
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-@st.cache_resource
-def _cached_design_library():
-    """Load the design library once per Streamlit session."""
-    from ia_pptx.design import get_design_library
-
-    return get_design_library()
+# ── CSS injection ───────────────────────────────────────────────────────────
 
 
 @st.cache_data
 def _load_css() -> str:
     css_path = _REPO_ROOT / "styles.css"
     base = css_path.read_text(encoding="utf-8") if css_path.is_file() else ""
-    # Streamlit-specific overrides applied on top of the project's design tokens.
     overrides = """
-    /* Hide Streamlit's default chrome we don't want. */
     #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; height: 0; }
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
-
-    /* Container max-width matches our design tokens. */
-    .main .block-container {
-        max-width: 880px !important;
-        padding-top: var(--space-8) !important;
-        padding-bottom: var(--space-10) !important;
-    }
-
-    /* Project app header / brand mark */
-    .ia-app-header {
-        display: flex; align-items: baseline; justify-content: space-between;
-        border-bottom: 1px solid var(--border);
-        padding-bottom: var(--space-4);
-        margin-bottom: var(--space-6);
-    }
-    .ia-brand { font-size: var(--heading-1-size); font-weight: 600; letter-spacing: -0.01em; }
-    .ia-version-chip {
-        font-family: var(--font-mono); font-size: var(--body-xs-size);
-        color: var(--text-secondary);
-        background-color: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-full);
-        padding: 2px 10px;
-    }
-
-    /* Style hint chips — custom HTML form with radio-as-pill pattern */
-    .ia-chips { display: flex; gap: var(--space-2); flex-wrap: wrap; margin: var(--space-3) 0 var(--space-4); }
-    .ia-chip {
-        display: inline-flex; align-items: center;
-        font-family: var(--font-sans); font-size: var(--body-sm-size); font-weight: 500;
-        padding: 8px 16px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-full);
-        background-color: var(--surface);
-        color: var(--text-primary);
-        cursor: pointer;
-        user-select: none;
-        transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
-        min-height: 44px;  /* WCAG touch-target */
-    }
-    .ia-chip:hover { border-color: var(--text-primary); }
-    .ia-chip[aria-checked="true"], .ia-chip.active {
-        background-color: var(--accent);
-        border-color: var(--accent);
-        color: #FFFFFF;
-    }
-    .ia-chip:focus-visible { box-shadow: var(--shadow-focus); outline: none; }
-
-    /* Streamlit slider track + thumb */
-    [data-testid="stSlider"] [role="slider"] {
-        background-color: var(--accent) !important;
-    }
-
-    /* Buttons: primary action uses accent. */
-    .stButton > button[kind="primary"], [data-testid="stDownloadButton"] button {
-        background-color: var(--accent) !important;
-        border: 1px solid var(--accent) !important;
-        color: #FFFFFF !important;
-        border-radius: var(--radius-sm) !important;
-        font-weight: 500 !important;
-        padding: 12px 20px !important;
-        min-height: 44px !important;
-    }
-    .stButton > button[kind="primary"]:hover, [data-testid="stDownloadButton"] button:hover {
-        background-color: var(--accent-hover) !important;
-        border-color: var(--accent-hover) !important;
-    }
-    .stButton > button[kind="primary"]:disabled {
-        background-color: var(--text-muted) !important;
-        border-color: var(--text-muted) !important;
-        cursor: not-allowed;
-    }
-
-    /* Mobile: full-width buttons under 640px */
-    @media (max-width: 639px) {
-        .stButton > button, [data-testid="stDownloadButton"] button { width: 100% !important; }
-    }
-
-    /* Status panel — phase narration */
-    [data-testid="stStatusWidget"], [data-testid="stStatus"] {
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        background-color: var(--surface);
-        padding: var(--space-4);
-    }
-
-    /* Banners: themed warning + error */
-    [data-testid="stAlert"] {
-        border-radius: var(--radius-sm);
-        border-width: 1px !important;
-    }
+    .main .block-container { max-width: 880px !important; padding-top: 2rem !important; padding-bottom: 4rem !important; }
+    .ia-app-header { display: flex; align-items: baseline; justify-content: space-between;
+        border-bottom: 1px solid var(--border, #e5e5e5); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+    .ia-brand { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; }
+    .ia-version-chip { font-family: ui-monospace, monospace; font-size: 0.75rem;
+        color: var(--text-secondary, #666); background-color: var(--surface, #f5f5f5);
+        border: 1px solid var(--border, #e5e5e5); border-radius: 999px; padding: 2px 10px; }
+    .ia-tagline { color: var(--text-secondary, #666); font-size: 0.95rem; margin-bottom: 1.5rem; }
     """
     return f"<style>{base}\n{overrides}</style>"
 
 
-st.html(_load_css())
+st.markdown(_load_css(), unsafe_allow_html=True)
+st.markdown(
+    f'<div class="ia-app-header"><div class="ia-brand">ia-pptx-generator</div>'
+    f'<div class="ia-version-chip">v{__version__}</div></div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<div class="ia-tagline">Editorial-grade decks via Claude + visual QA loop. '
+    "Pick a format, describe the deck, watch Claude render → screenshot → fix → ship.</div>",
+    unsafe_allow_html=True,
+)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Brand mark / app header (UX-DR19)
-# ─────────────────────────────────────────────────────────────────────────────
-
-st.html(f"""
-<header class="ia-app-header">
-  <span class="ia-brand">ia-pptx-generator</span>
-  <span class="ia-version-chip" aria-label="version">v{__version__}</span>
-</header>
-""")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Slide design tips (collapsed by default — informational, doesn't affect generation)
-# ─────────────────────────────────────────────────────────────────────────────
-
-with st.expander("📐 What makes a good deck (the principles this generator uses)", expanded=False):
-    st.markdown("""
-This generator is built around ten well-tested principles for slide design. They
-shape how Claude chooses layout, picks titles, and drafts content. Knowing them
-helps you write better prompts — and edit the generated decks more effectively.
-
-1. **One idea per slide.** Complex topics get split across multiple slides.
-2. **About one minute per slide.** If a slide needs more than that, it's too dense — split it.
-3. **The title is the conclusion.** Each slide's title states what the audience should take away — not just the topic. *"False-positive rates depend on sample size"* beats *"Results"*.
-4. **Only essential content.** Anything you wouldn't talk about doesn't appear.
-5. **Credit your sources.** When references matter, place them consistently.
-6. **Use visuals effectively.** Layouts carry meaning, not just text.
-7. **Don't overload the eye.** Maximum 6 elements per slide. Sans-serif fonts, high contrast, no italics or all-caps.
-8. **The distracted-person test.** If someone glances at the slide for 2 seconds, can they get the point?
-9. **Decks improve with practice.** The generated deck is a starting point — read through, edit, rehearse.
-10. **No animations or fly-ins.** They distract more than they help.
-
-*Source: Naegle KM, "Ten simple rules for effective presentation slides," PLOS Comp Bio (2021).
-[doi:10.1371/journal.pcbi.1009554](https://doi.org/10.1371/journal.pcbi.1009554)*
-""")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# API key check — load and surface clear status
-# Resolution: .env → ~/.config/ia-pptx/credentials.json → ANTHROPIC_API_KEY
-# ─────────────────────────────────────────────────────────────────────────────
-
-from ia_pptx.auth import load_api_key
+# ── API key check ──────────────────────────────────────────────────────────
 
 API_KEY = load_api_key()
 if not API_KEY:
     st.error(
-        "**No Anthropic API key found.** The Generate button will stay disabled "
-        "until a key is available.\n\n"
-        "Pick one of these:\n\n"
+        "**No Anthropic API key found.** The Generate button stays disabled until a key is available.\n\n"
         "- **Recommended:** in a terminal at the repo root, run `python3 -m ia_pptx login` "
-        "and paste your key. It's saved to `~/.config/ia-pptx/credentials.json` "
-        "(mode 0600), then refresh this page.\n"
+        "and paste your key. It's saved to `~/.config/ia-pptx/credentials.json` (mode 0600), then refresh.\n"
         "- **Or** create a `.env` file at the repo root with one line: "
         "`ANTHROPIC_API_KEY=sk-ant-...`, then refresh.\n\n"
         "[Get a key from console.anthropic.com →](https://console.anthropic.com/settings/keys)"
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Main interaction
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Inputs ─────────────────────────────────────────────────────────────────
 
-# Session-state defaults
-if "style_hint" not in st.session_state:
-    st.session_state.style_hint = "Auto"
-if "input_mode" not in st.session_state:
-    st.session_state.input_mode = "Free prompt"
-if "last_generation" not in st.session_state:
-    st.session_state.last_generation = None  # type: ignore[assignment]
+if "last_output_path" not in st.session_state:
+    st.session_state.last_output_path = None
+if "last_jpgs" not in st.session_state:
+    st.session_state.last_jpgs = []  # type: ignore[assignment]
 
-# ── Mode toggle: free prompt vs user-supplied plan ──────────────────────────
-
-mode_col, _spacer = st.columns([2, 3])
-with mode_col:
-    st.session_state.input_mode = st.radio(
-        label="Input mode",
-        options=["Free prompt", "I have a plan"],
-        index=0 if st.session_state.input_mode == "Free prompt" else 1,
-        horizontal=True,
-        label_visibility="collapsed",
-    )
-
-is_plan_mode = st.session_state.input_mode == "I have a plan"
-
-# ── Main input: prompt OR plan ──────────────────────────────────────────────
-
-if is_plan_mode:
-    user_plan_text = st.text_area(
-        label="Your plan",
-        placeholder=(
-            "Markdown-style outline — one bullet per slide, sub-bullets become slide content.\n\n"
-            "Example:\n"
-            "- The French Revolution\n"
-            "  - 1789 — collapse of an old order\n"
-            "- Roots of unrest\n"
-            "  - Financial crisis after costly wars\n"
-            "  - Inequalities of the Estates system\n"
-            "- Three pivotal events\n"
-            "  - Storming of the Bastille\n"
-            "  - Declaration of the Rights of Man"
-        ),
-        height=240,
-        label_visibility="visible",
-        key="plan_input",
-        help=(
-            "Top-level bullets become slides; sub-bullets become slide content. "
-            "Claude polishes wording but does not invent slides not in your plan."
-        ),
-    )
-    prompt = st.text_input(
-        label="Topic context (optional)",
-        placeholder="One-line topic for context — e.g., 'High-school history exposé'",
-        key="prompt_input",
-    )
-else:
-    user_plan_text = ""
-    prompt = st.text_area(
-        label="Describe your deck",
-        placeholder="e.g., A 12-slide exposé on the French Revolution for a high school class",
-        height=140,
-        label_visibility="visible",
-        key="prompt_input",
-    )
-
-# ── Steering inputs (always visible, no Advanced expander) ───────────────────
-
-key_takeaway = st.text_input(
-    label="Key takeaway (optional)",
-    placeholder="The one sentence you want the audience to walk away with",
-    key="key_takeaway_input",
-    help=(
-        "If set, the closing slide's title will be shaped to reflect this. "
-        "Leave blank to let the generator infer it from the topic."
-    ),
+prompt = st.text_area(
+    label="Describe your deck",
+    placeholder="e.g., A 10-slide exposé on the French Revolution for a high school class",
+    height=140,
+    key="prompt_input",
 )
 
-audience = st.text_input(
-    label="Audience (optional)",
-    placeholder="e.g., high school class, design-leaning engineers",
-    key="audience_input",
-)
+col_format, col_length, col_iters = st.columns([2, 1, 1])
 
-# ── Style controls ──────────────────────────────────────────────────────────
-
-st.write("**Style direction**")
-STYLE_HINTS = ["Auto", "More formal", "More dynamic", "More minimalist"]
-chip_cols = st.columns(len(STYLE_HINTS))
-for i, hint in enumerate(STYLE_HINTS):
-    is_active = st.session_state.style_hint == hint
-    with chip_cols[i]:
-        if st.button(
-            hint,
-            key=f"chip-{i}",
-            type="primary" if is_active else "secondary",
-            use_container_width=True,
-        ):
-            st.session_state.style_hint = hint
-            st.rerun()
-
-# Lazy-load the design library once so we can show the full style list.
-_design_library = _cached_design_library()
-_style_names = ["Auto", *sorted(s.name for s in _design_library.list_styles())]
-forced_style_name = st.selectbox(
-    label=f"Pin a specific design style ({len(_style_names) - 1} from ui-ux-pro-max)",
-    options=_style_names,
-    index=0,
-    help=(
-        "Leave on 'Auto' to let Claude pick a style appropriate to the prompt. "
-        "Pick a specific style to lock the visual direction; Claude still chooses "
-        "layout grid, section structure, hierarchy, and content density to fit."
-    ),
-)
-
-# ── Output language + renderer backend ──────────────────────────────────────
-
-lang_col, renderer_col = st.columns([1, 1])
-
-with lang_col:
-    LANGUAGE_OPTIONS = [
-        "Auto",
-        "English",
-        "French",
-        "Spanish",
-        "German",
-        "Italian",
-        "Portuguese",
-        "Dutch",
-        "Polish",
-        "Japanese",
-        "Chinese",
-    ]
-    output_language = st.selectbox(
-        label="Output language",
-        options=LANGUAGE_OPTIONS,
+with col_format:
+    OUTPUT_FORMATS = {
+        "Editable .pptx (pptxgenjs)": "pptx",
+        "Publication .pdf (WeasyPrint)": "pdf",
+    }
+    output_choice = st.selectbox(
+        "Output format",
+        options=list(OUTPUT_FORMATS.keys()),
         index=0,
         help=(
-            "'Auto' uses the language of your prompt/plan. "
-            "Pick a specific language to override (e.g., write in French even if your prompt is English)."
+            "**Editable .pptx**: Claude writes pptxgenjs JS — opens in PowerPoint, all text remains native. "
+            "**Publication .pdf**: Claude writes HTML/CSS — highest design fidelity (web fonts, real grids, "
+            "gradients). Not editable but visually richest."
         ),
     )
+    output_kind = OUTPUT_FORMATS[output_choice]
 
-with renderer_col:
-    RENDERER_OPTIONS = {
-        "Editable .pptx — pptxgenjs (recommended)": "pptxgenjs",
-        "Editable .pptx — python-pptx (no Node required)": "pptx-native",
-        "PDF — WeasyPrint (highest design fidelity)": "weasyprint-html",
+with col_length:
+    length_hint = st.number_input(
+        "Slides",
+        min_value=4,
+        max_value=20,
+        value=10,
+        step=1,
+        help="Target slide count. Claude may pad/trim by 1–2 slides.",
+    )
+
+with col_iters:
+    max_iterations = st.number_input(
+        "QA passes",
+        min_value=1,
+        max_value=10,
+        value=3,
+        step=1,
+        help="Max revise loops. The visual QA loop renders slides, spots bugs, asks Claude to fix.",
+    )
+
+with st.expander("LLM backend", expanded=False):
+    LLM_PREFS = {
+        "Auto (Claude Code if installed, else API)": "auto",
+        "Claude Code CLI (uses your subscription)": "code",
+        "Anthropic API (uses your API key)": "api",
     }
-    renderer_label = st.selectbox(
-        label="Renderer",
-        options=list(RENDERER_OPTIONS.keys()),
-        index=0,  # pptxgenjs default: editable + best design
-        help=(
-            "pptxgenjs (recommended): Node.js bridge, richer text/shape primitives, "
-            "ui-ux-pro-max design vocabulary surfaces best here, .pptx stays editable. "
-            "python-pptx: pure-Python fallback, simpler but lower visual ceiling. "
-            "WeasyPrint: HTML+CSS, highest design fidelity, .pdf only (not editable)."
-        ),
+    llm_label = st.selectbox(
+        "Which LLM to drive the pipeline",
+        options=list(LLM_PREFS.keys()),
+        index=0,
     )
-    selected_renderer = RENDERER_OPTIONS[renderer_label]
+    llm_pref = LLM_PREFS[llm_label]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Generate action
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Generate ────────────────────────────────────────────────────────────────
 
-# Validate input depending on mode + key presence; build an explicit label
-# so the user always knows WHY the button is disabled.
-if is_plan_mode:
-    input_is_blank = not user_plan_text or not user_plan_text.strip()
-    blank_msg = "enter a plan"
-else:
-    input_is_blank = not prompt or not prompt.strip()
-    blank_msg = "enter a prompt"
-
+input_is_blank = not prompt or not prompt.strip()
 reasons: list[str] = []
-if not API_KEY:
-    reasons.append("set up your API key (see the red banner above)")
+if not API_KEY and llm_pref == "api":
+    reasons.append("set up your API key or pick a different backend")
 if input_is_blank:
-    reasons.append(blank_msg)
+    reasons.append("enter a prompt")
 
-if reasons:
-    button_label = "Generate deck — " + " and ".join(reasons) + " to enable"
-else:
-    button_label = "Generate deck"
-
+button_label = (
+    "Generate — " + " and ".join(reasons) + " to enable"
+    if reasons
+    else f"Generate {output_kind.upper()}"
+)
 generate_disabled = bool(reasons)
 
 generate_clicked = st.button(
@@ -427,91 +176,89 @@ generate_clicked = st.button(
     type="primary",
     disabled=generate_disabled,
     use_container_width=True,
-    key="generate-btn",
 )
 
-
-def _run_generation(
-    user_prompt: str,
-    audience_str: str | None,
-    style_hint: str,
-    forced_style: str | None,
-    key_takeaway_str: str | None,
-    user_plan_str: str | None,
-    language_str: str | None,
-    renderer_kind: str,
-) -> Path | None:
-    """Run the generation with phase-narrated status panel.
-
-    Returns the output Path, or None on failure (banner already shown).
-    """
-    with st.status("Generating…", expanded=True) as status:
-        try:
-            status.update(label="Choosing a layout direction…")
-            hints = Hints(
-                audience=audience_str or None,
-                style_direction=style_hint if style_hint != "Auto" else None,
-                forced_style_name=forced_style if forced_style and forced_style != "Auto" else None,
-                deck_length=None,
-                key_takeaway=key_takeaway_str or None,
-                user_plan=user_plan_str or None,
-                language=language_str if language_str and language_str != "Auto" else None,
-            )
-            written = generate(
-                prompt=user_prompt or "(plan-only)",
-                hints=hints,
-                renderer=renderer_kind,
-            )
-            status.update(label="Deck generated.", state="complete")
-            return written
-        except InvalidPrompt as exc:
-            status.update(label="Prompt invalid.", state="error")
-            st.error(f"{exc}")
-        except DesignLibraryUnavailable as exc:
-            status.update(label="Design library unavailable.", state="error")
-            st.error(f"Design library not loaded: {exc}")
-        except GenerationFailed as exc:
-            status.update(label="Generation failed.", state="error")
-            st.error(f"Generation failed: {exc}. Try a different prompt, or check your API key.")
-        except RenderFailed as exc:
-            status.update(label="Render failed.", state="error")
-            st.error(f"Generation failed during rendering: {exc}")
-        except Exception as exc:
-            status.update(label="Unexpected error.", state="error")
-            st.error(f"Unexpected error: {exc}")
-    return None
-
-
 if generate_clicked:
-    result = _run_generation(
-        user_prompt=prompt,
-        audience_str=audience or None,
-        style_hint=st.session_state.style_hint,
-        forced_style=forced_style_name,
-        key_takeaway_str=key_takeaway,
-        user_plan_str=user_plan_text if is_plan_mode else None,
-        language_str=output_language,
-        renderer_kind=selected_renderer,
-    )
-    if result:
-        st.session_state.last_generation = str(result)
+    out_dir = _REPO_ROOT / "out" / ("freeform" if output_kind == "pptx" else "freeform-pdf")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_name = f"deck_{output_kind}.pptx" if output_kind == "pptx" else "deck_pdf.pdf"
+    output_path = out_dir / out_name
+
+    with st.status("Starting…", expanded=True) as status:
+        # Live event log: every phase emit gets surfaced as both the status
+        # label (current step) and a writeable log inside the expander
+        # (history). The user always sees what the pipeline is doing.
+        status_log = st.empty()
+        events: list[str] = []
+
+        def _on_progress(msg: str) -> None:
+            events.append(msg)
+            status.update(label=msg)
+            status_log.markdown(
+                "\n".join(f"- {e}" for e in events[-30:])  # cap history
+            )
+
+        try:
+            if output_kind == "pptx":
+                _on_progress("Starting pptxgenjs pipeline…")
+                result = freeform_generate(
+                    prompt=prompt,
+                    output_path=output_path,
+                    llm_pref=llm_pref,
+                    length_hint=int(length_hint),
+                    max_iterations=int(max_iterations),
+                    progress=_on_progress,
+                )
+                final_path = result.pptx_path
+                jpgs = result.jpg_paths
+                iterations = result.iterations
+                last_bugs = result.bug_history[-1] if result.bug_history else []
+            else:
+                _on_progress("Starting WeasyPrint pipeline…")
+                pdf_result = freeform_pdf_generate(
+                    prompt=prompt,
+                    output_path=output_path,
+                    llm_pref=llm_pref,
+                    length_hint=int(length_hint),
+                    max_iterations=int(max_iterations),
+                    progress=_on_progress,
+                )
+                final_path = pdf_result.pdf_path
+                jpgs = pdf_result.jpg_paths
+                iterations = pdf_result.iterations
+                last_bugs = pdf_result.bug_history[-1] if pdf_result.bug_history else []
+
+            status.update(
+                label=f"Done in {iterations} iteration(s) · {len(last_bugs)} bug(s) remaining",
+                state="complete",
+            )
+            st.session_state.last_output_path = str(final_path)
+            st.session_state.last_jpgs = [str(p) for p in jpgs]
+            if last_bugs:
+                with st.expander(f"⚠️  {len(last_bugs)} unfixed bug(s) — visual QA flagged"):
+                    for bug in last_bugs:
+                        st.write(
+                            f"**Slide {bug.get('slide_index', '?')}** "
+                            f"[{bug.get('type', '?')}] — {bug.get('description', '')}"
+                        )
+        except Exception as exc:
+            status.update(label="Generation failed", state="error")
+            st.error(f"{exc}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Story 3.6 — Download CTA + (placeholder) preview thumbnails
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Result preview + download ──────────────────────────────────────────────
 
-last = st.session_state.get("last_generation")
+last = st.session_state.get("last_output_path")
 if last:
     last_path = Path(last)
     if last_path.is_file():
         with last_path.open("rb") as f:
             data = f.read()
-        # MIME by extension (.pptx vs .pdf).
-        if last_path.suffix.lower() == ".pdf":
-            mime = "application/pdf"
-        else:
-            mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        mime = (
+            "application/pdf"
+            if last_path.suffix.lower() == ".pdf"
+            else "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
         st.download_button(
             label=f"Download {last_path.name}",
             data=data,
@@ -520,19 +267,20 @@ if last:
             type="primary",
             use_container_width=True,
         )
-        # Optional preview thumbnail (only for .pptx — PDFs preview natively in browsers).
-        if last_path.suffix.lower() == ".pptx":
-            try:
-                from ia_pptx.eval.snapshot import render_thumbnail
-
-                thumb_dir = _REPO_ROOT / "out" / "preview"
-                thumb_dir.mkdir(parents=True, exist_ok=True)
-                thumb_path = thumb_dir / f"{last_path.stem}.png"
-                render_thumbnail(last_path, thumb_path, size=(800, 450))
-                st.image(
-                    str(thumb_path),
-                    caption=f"Preview · {last_path.name}",
-                    use_container_width=True,
-                )
-            except Exception:
-                pass
+    jpgs = st.session_state.get("last_jpgs") or []
+    if jpgs:
+        st.markdown("### Slide preview")
+        cols_per_row = 2
+        for row_start in range(0, len(jpgs), cols_per_row):
+            row = st.columns(cols_per_row)
+            for offset, col in enumerate(row):
+                idx = row_start + offset
+                if idx >= len(jpgs):
+                    continue
+                jpg_path = Path(jpgs[idx])
+                if jpg_path.is_file():
+                    col.image(
+                        str(jpg_path),
+                        caption=f"Slide {idx + 1:02d}",
+                        use_container_width=True,
+                    )

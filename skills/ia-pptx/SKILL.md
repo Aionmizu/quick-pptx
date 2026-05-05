@@ -1,65 +1,79 @@
 ---
 name: ia-pptx
 description: |
-  Generate visually distinctive PowerPoint decks from a prompt. Composes Claude
-  with ui-ux-pro-max design intelligence to produce decks where structure and
-  style genuinely vary between projects — not just palette swaps.
+  Generate editorial-grade decks from a prompt. Claude writes the deck source
+  directly (pptxgenjs JS for editable .pptx, or HTML/CSS for publication-quality
+  PDF), the script renders it, screenshots each slide, and a vision pass spots
+  rendering bugs and asks Claude to revise. Bounded to 3 iterations.
 
   Triggers on natural-language requests for: deck, presentation, slides,
-  PowerPoint, slideshow, exposé, diapo, exposition, présentation, diapositives.
+  PowerPoint, slideshow, exposé, diapo, présentation, diapositives.
 
-  Accepts hints inline in the prompt: deck length (e.g., "12 slides"), audience
-  (e.g., "for a high school class"), style direction (e.g., "more formal",
-  "more dynamic", "more minimalist"). Output is a native, editable .pptx file.
+  Accepts inline hints: slide count ("12 slides"), output format ("as PDF",
+  "editable .pptx"), and any other direction that should land in the prompt.
 ---
 
-# ia-pptx — distinctive PowerPoint deck generator
+# ia-pptx — editorial deck generator
 
 ## When to use this skill
 
-Use this skill whenever the user asks for a presentation deck. Trigger phrases (English + French):
+Use this skill whenever the user asks for a presentation deck. Triggers (EN + FR):
 
-- "make me a deck about …"
-- "make a presentation on …"
-- "I need slides for …"
-- "create a PowerPoint about …"
-- "build a slideshow on …"
-- "fais-moi un exposé sur …"
-- "j'ai besoin d'un exposé / une présentation / une diapo sur …"
-- "crée des diapositives pour …"
+- "make me a deck about …" / "fais-moi un exposé sur …"
+- "I need slides for …" / "j'ai besoin d'un exposé / une présentation"
+- "create a PowerPoint about …" / "crée des diapositives pour …"
+- "build a slideshow on …" / "une diapo sur …"
 
 ## What this skill does
 
-Given a free-text prompt and optional hints, this skill:
+Given a free-text prompt, this skill does NOT use a fixed-template renderer.
+Instead, Claude writes the deck source code directly, and a visual QA loop
+catches and fixes rendering bugs.
 
-1. Asks Claude (you) to commit to four structural design choices upfront — layout grid, section structure, hierarchy pattern, content density — plus a specific visual style sampled from the vendored `ui-ux-pro-max` design library.
-2. Drafts slide content (titles, body, optional section dividers) shaped to those choices.
-3. Renders a native `.pptx` file (editable text, no rasterization) via `python-pptx`.
-4. Returns the file path so the user can open and edit the deck in PowerPoint, Keynote, or Google Slides.
+Two pipelines are available:
+
+1. **Editable .pptx** (default) — Claude writes a complete `pptxgenjs` Node.js
+   script. The script is executed, the resulting `.pptx` is converted to a PDF
+   via LibreOffice and rasterized to per-slide JPGs. A vision pass inspects
+   each JPG, flags overflow / overlap / contrast bugs, and Claude revises.
+   Bounded to 3 iterations. Output is editable in PowerPoint/Keynote.
+
+2. **Publication-quality .pdf** — Claude writes a single self-contained
+   HTML+CSS file (web fonts via Google Fonts, real CSS Grid, gradients,
+   transforms). WeasyPrint renders to PDF. Same vision QA loop. Output is
+   not editable but visually richer than the .pptx path.
 
 ## How to invoke
 
-When you detect a deck-generation intent, run:
+When you detect a deck-generation intent, choose the format from the user's
+request (default: editable .pptx) and run:
 
 ```
-PYTHONPATH=<skill-bundle>/src python3 <skill-bundle>/scripts/generate.py \
+# Editable .pptx
+PYTHONPATH=<skill-bundle>/src python3 -m ia_pptx generate \
   --prompt "<the user's full prompt verbatim>" \
   [--length <N>] \
-  [--audience "<audience>"] \
-  [--style-hint "Auto|More formal|More dynamic|More minimalist"] \
-  [--output "<path/to/output.pptx>"]
+  --output "<path/to/output.pptx>"
+
+# Publication PDF
+PYTHONPATH=<skill-bundle>/src python3 -m ia_pptx generate-pdf \
+  --prompt "<the user's full prompt verbatim>" \
+  [--length <N>] \
+  --output "<path/to/output.pdf>"
 ```
 
-If the user did not specify length, default to 10. If they did, parse it from the prompt.
+If the user did not specify length, default to 10. Parse a count from the
+prompt if mentioned.
 
-After the script completes, surface to the user exactly: *"Your deck is at: `<path>`. Open in PowerPoint to edit."*
+After the script completes, surface to the user: *"Your deck is at `<path>`.
+Per-slide JPGs are alongside it for preview."*
 
 ## What this skill does NOT do
 
 - Does not edit existing decks (a sibling iteration skill is planned).
 - Does not import brand assets (post-MVP).
-- Does not produce charts with real data — AI-generated numeric content is plausibly fabricated; the user should verify or supply real numbers themselves.
+- Does not produce charts with real data — verify or supply real numbers yourself.
 
 ## License & attribution
 
-This skill is MIT-licensed. It vendors `ui-ux-pro-max` (MIT, https://github.com/nextlevelbuilder/ui-ux-pro-max-skill). See `THIRD_PARTY_LICENSES.md` in the bundle root.
+MIT-licensed. See `THIRD_PARTY_LICENSES.md` in the bundle root.
