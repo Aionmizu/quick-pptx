@@ -73,6 +73,8 @@ def _cmd_generate(args: argparse.Namespace) -> int:
             llm_pref=args.llm,
             length_hint=args.length,
             max_iterations=args.max_iterations,
+            style=args.style,
+            apply_naegle=args.naegle_rules,
         )
     except Exception as exc:
         print(f"Generation failed: {exc}", file=sys.stderr)
@@ -93,12 +95,24 @@ def _cmd_generate_pdf(args: argparse.Namespace) -> int:
             llm_pref=args.llm,
             length_hint=args.length,
             max_iterations=args.max_iterations,
+            style=args.style,
+            apply_naegle=args.naegle_rules,
         )
     except Exception as exc:
         print(f"PDF generation failed: {exc}", file=sys.stderr)
         return 1
     last_bugs = result.bug_history[-1] if result.bug_history else []
     _print_result(result.pdf_path, result.iterations, last_bugs, result.jpg_paths)
+    return 0
+
+
+def _cmd_list_styles(_args: argparse.Namespace) -> int:
+    from ia_pptx.design import PRESETS
+
+    for p in PRESETS:
+        print(f"  {p.name:24s}  {p.heading_font} / {p.body_font}")
+        print(f"    {p.mood}")
+    print(f"\nTotal: {len(PRESETS)} presets. Use --style <name> or --style auto.")
     return 0
 
 
@@ -136,6 +150,18 @@ def main() -> int:
             "code: force CLI. api: force API key.",
         )
         p.add_argument(
+            "--style",
+            default="auto",
+            help="Style preset name (e.g. 'editorial-classic', 'tech-startup'). "
+            "Default 'auto' picks one randomly. Use `ia-pptx list-styles` for all.",
+        )
+        p.add_argument(
+            "--naegle-rules",
+            action="store_true",
+            help="Apply Naegle 2021's 10 rules of academic slide design. Off by default — "
+            "opt in for research / academic / educational decks.",
+        )
+        p.add_argument(
             "--max-iterations",
             type=int,
             default=3,
@@ -155,6 +181,9 @@ def main() -> int:
     )
     _add_freeform_args(p_pdf)
     p_pdf.set_defaults(func=_cmd_generate_pdf)
+
+    p_list = sub.add_parser("list-styles", help="List all available style presets.")
+    p_list.set_defaults(func=_cmd_list_styles)
 
     args = parser.parse_args()
     return int(args.func(args))

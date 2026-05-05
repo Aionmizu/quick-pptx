@@ -53,17 +53,31 @@ request (default: editable .pptx) and run:
 PYTHONPATH=<skill-bundle>/src python3 -m ia_pptx generate \
   --prompt "<the user's full prompt verbatim>" \
   [--length <N>] \
+  [--style <preset|auto>] \
+  [--naegle-rules] \
   --output "<path/to/output.pptx>"
 
 # Publication PDF
 PYTHONPATH=<skill-bundle>/src python3 -m ia_pptx generate-pdf \
   --prompt "<the user's full prompt verbatim>" \
   [--length <N>] \
+  [--style <preset|auto>] \
+  [--naegle-rules] \
   --output "<path/to/output.pdf>"
 ```
 
 If the user did not specify length, default to 10. Parse a count from the
 prompt if mentioned.
+
+`--style`: pick a curated preset (palette + Google Fonts pairing + composition
+character). Use `python3 -m ia_pptx list-styles` to see all 20. Default `auto`
+picks randomly. If the user mentioned a tone (e.g. "academic", "modern tech",
+"editorial magazine", "luxury", "brutalist"), pick the matching preset name.
+
+`--naegle-rules`: opt-in to the Naegle 2021 ten rules of academic slide design
+(one idea per slide, ≤6 informational elements, title states the conclusion,
+no animations). Recommended for research / academic / educational decks. Off
+by default — leave off for marketing / pitch / brand decks.
 
 After the script completes, surface to the user: *"Your deck is at `<path>`.
 Per-slide JPGs are alongside it for preview."*

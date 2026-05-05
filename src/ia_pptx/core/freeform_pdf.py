@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ia_pptx.core._llm import LLM, get_llm
+from ia_pptx.design import StylePreset, get_preset
 from ia_pptx.prompts import load_prompt
 
 ProgressFn = Callable[[str], None]
@@ -47,6 +48,7 @@ class FreeformPdfResult:
     iterations: int
     final_html: str
     bug_history: list[list[dict]]
+    preset: StylePreset | None = None
 
 
 def _strip_code_fences(text: str) -> str:
@@ -61,8 +63,47 @@ def _strip_code_fences(text: str) -> str:
     return text.strip()
 
 
-def _generate_html(llm: LLM, user_prompt: str, length_hint: int | None) -> str:
-    system = load_prompt("freeform_pdf_system")
+def _format_preset_block(preset: StylePreset) -> str:
+    pal = preset.palette
+    return (
+        f"name: {preset.name}\n"
+        f"mood: {preset.mood}\n"
+        f"heading_font: {preset.heading_font}\n"
+        f"body_font: {preset.body_font}\n"
+        f"palette:\n"
+        f"  --ink:   #{pal.ink}\n"
+        f"  --paper: #{pal.paper}\n"
+        f"  --rust:  #{pal.rust}\n"
+        f"  --ash:   #{pal.ash}\n"
+        f"  --bone:  #{pal.bone}\n"
+        f"  --gold:  #{pal.gold}\n"
+        f"composition_notes:\n  {preset.composition_notes}\n"
+        f"css_import_to_drop_at_top:\n  {preset.css_import}"
+    )
+
+
+def _build_system_prompt(preset: StylePreset, apply_naegle: bool) -> str:
+    template = load_prompt("freeform_pdf_system")
+    naegle_block = (
+        "\nADDITIONAL ACADEMIC SLIDE-DESIGN RULES (user opted in)\n"
+        "=====================================================\n" + load_prompt("naegle_rules")
+        if apply_naegle
+        else ""
+    )
+    return template.format(
+        style_preset_block=_format_preset_block(preset),
+        naegle_block=naegle_block,
+    )
+
+
+def _generate_html(
+    llm: LLM,
+    user_prompt: str,
+    length_hint: int | None,
+    preset: StylePreset,
+    apply_naegle: bool,
+) -> str:
+    system = _build_system_prompt(preset, apply_naegle)
     length_clause = (
         f" Aim for exactly {length_hint} slides." if length_hint else " Aim for 8–12 slides."
     )
@@ -165,6 +206,8 @@ def freeform_pdf_generate(
     length_hint: int | None = None,
     max_iterations: int = MAX_ITERATIONS,
     progress: ProgressFn | None = None,
+    style: str | None = "auto",
+    apply_naegle: bool = False,
 ) -> FreeformPdfResult:
     """Generate a PDF deck via the freeform Claude-writes-HTML pipeline.
 
@@ -183,6 +226,12 @@ def freeform_pdf_generate(
     llm = get_llm(prefer=llm_pref)
     _emit(f"LLM backend: {llm.name}")
 
+    preset = get_preset(style)
+    _emit(
+        f"Style preset: {preset.name} ({preset.heading_font} / {preset.body_font})"
+        + (" + Naegle rules" if apply_naegle else "")
+    )
+
     output_path = output_path.resolve()
     if output_path.suffix.lower() != ".pdf":
         output_path = output_path.with_suffix(".pdf")
@@ -191,7 +240,7 @@ def freeform_pdf_generate(
     html_path = work_dir / "deck_freeform.html"
 
     _emit("Drafting initial HTML+CSS deck…")
-    html = _generate_html(llm, prompt, length_hint)
+    html = _generate_html(llm, prompt, length_hint, preset, apply_naegle)
     _emit(f"Initial HTML ready ({len(html):,} chars)")
 
     bug_history: list[list[dict]] = []
@@ -250,6 +299,7 @@ def freeform_pdf_generate(
         iterations=iteration,
         final_html=html,
         bug_history=bug_history,
+        preset=preset,
     )
 
 

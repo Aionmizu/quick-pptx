@@ -26,6 +26,7 @@ import streamlit as st
 from ia_pptx import __version__
 from ia_pptx.auth import load_api_key
 from ia_pptx.core import freeform_generate, freeform_pdf_generate
+from ia_pptx.design import PRESETS
 
 logger = logging.getLogger("ia_pptx.streamlit")
 
@@ -141,6 +142,40 @@ with col_iters:
         help="Max revise loops. The visual QA loop renders slides, spots bugs, asks Claude to fix.",
     )
 
+# ── Style preset + Naegle toggle ────────────────────────────────────────────
+
+style_options: dict[str, str] = {"Auto (random thematic pick)": "auto"}
+for p in PRESETS:
+    style_options[f"{p.name} — {p.heading_font} / {p.body_font}"] = p.name
+
+col_style, col_naegle = st.columns([3, 2])
+
+with col_style:
+    style_label = st.selectbox(
+        "Style preset",
+        options=list(style_options.keys()),
+        index=0,
+        help=(
+            "Each preset bundles a curated palette + Google-Fonts pairing + "
+            "composition character (drawn from the vendored ui-ux-pro-max library). "
+            "Pick a specific one or leave on Auto. Claude will use the preset's "
+            "fonts and palette throughout the deck."
+        ),
+    )
+    selected_style = style_options[style_label]
+
+with col_naegle:
+    apply_naegle = st.checkbox(
+        "Apply Naegle 10 rules of academic slide design",
+        value=False,
+        help=(
+            "Off by default. When enabled, the system prompt includes Naegle 2021's "
+            "ten rules — one idea per slide, ≤6 informational elements, title = "
+            "conclusion, no animations, etc. Recommended for research / academic / "
+            "educational decks. Leave off for marketing / pitch decks."
+        ),
+    )
+
 with st.expander("LLM backend", expanded=False):
     LLM_PREFS = {
         "Auto (Claude Code if installed, else API)": "auto",
@@ -208,6 +243,8 @@ if generate_clicked:
                     length_hint=int(length_hint),
                     max_iterations=int(max_iterations),
                     progress=_on_progress,
+                    style=selected_style,
+                    apply_naegle=apply_naegle,
                 )
                 final_path = result.pptx_path
                 jpgs = result.jpg_paths
@@ -222,6 +259,8 @@ if generate_clicked:
                     length_hint=int(length_hint),
                     max_iterations=int(max_iterations),
                     progress=_on_progress,
+                    style=selected_style,
+                    apply_naegle=apply_naegle,
                 )
                 final_path = pdf_result.pdf_path
                 jpgs = pdf_result.jpg_paths

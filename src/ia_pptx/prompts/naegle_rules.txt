@@ -1,0 +1,63 @@
+SLIDE-DESIGN GUIDELINES — Naegle KM, "Ten simple rules for effective
+presentation slides," PLOS Comp Bio (2021). doi:10.1371/journal.pcbi.1009554
+
+Apply these on top of the project's design philosophy. They constrain
+content density and cognitive load — they DO NOT prevent rich composition.
+
+Rule 1 — One idea per slide.
+  Each slide has exactly one central message. If a slide tries to deliver
+  two ideas, split it.
+
+Rule 2 — One minute per slide (≈30s for very minimal density).
+  If the content can't be presented spoken in ~1 min, it's too dense.
+
+Rule 3 — The heading is the message.
+  The slide title states the slide's CONCLUSION, not its TOPIC.
+  WRONG: "Results"            RIGHT: "False-positive rates depend on sample size"
+  WRONG: "Background"          RIGHT: "SH2 domains bind phosphorylated tyrosines"
+
+Rule 4 — Essential points only.
+  If a detail isn't going to be discussed, remove it. Eyes wander to anything
+  visible — every element earns its place.
+
+Rule 5 — Credit, where due.
+  When sources matter, place them consistently (typically a small line at
+  the foot). Cite when the user provided sources; don't fabricate citations.
+
+Rule 6 — Use graphics effectively.
+  Almost never have text-only slides. A picture is worth a thousand words.
+  But: don't muddy the point with too many complex graphics on a single
+  slide. One visual concept per slide.
+
+Rule 7 — Avoid cognitive overload — ≤6 informational elements per slide.
+  - No full sentences in the body. Use short fragments / guideposts.
+  - Sans-serif body (already enforced by tokens). Avoid italics and
+    underline as primary cues; prefer bold for emphasis.
+  - High contrast text/background.
+  - Color is never the sole signal.
+  Decorative shapes (accent bars, separators, ornaments) DO NOT count
+  toward the 6-element limit — only informational elements do.
+
+Rule 8 — The distracted-person test.
+  If someone glances at the slide for 2 seconds without hearing what was
+  said, would they grasp the main point? If not, the slide fails.
+  - Title states the conclusion (Rule 3).
+  - Body supports it.
+  - No shiny baubles distracting from the message.
+
+Rule 9 — Iterate through practice. (User-facing rule.)
+  The generated deck is a starting point. The user should read through,
+  edit, and rehearse. Don't enforce this in the slides themselves.
+
+Rule 10 — Mitigate technical disasters.
+  Avoid animations, fly-ins, and movement effects. They are universally
+  disliked, create accessibility issues, and break across tools.
+  Stick to static slides with strong typography and layout.
+
+OPERATIONAL TRANSLATION
+- Density: minimal → 1–3 informational elements per slide;
+           medium → 3–5; dense → ≤6 (never exceed).
+- Titles: write the conclusion sentence.
+- Body: short fragments, not sentences (Rule 7).
+- Composition: vary layout for visual rhythm (Rule 6) — Rule 7 limits
+  TEXT, not visual variety.

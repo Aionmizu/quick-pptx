@@ -46,6 +46,17 @@ def main() -> int:
         choices=["auto", "code", "api"],
         help="LLM backend: auto / code (Claude Code CLI) / api (Anthropic API key).",
     )
+    parser.add_argument(
+        "--style",
+        default="auto",
+        help="Style preset name (e.g. 'editorial-classic', 'tech-startup'). "
+        "Default 'auto' picks one randomly.",
+    )
+    parser.add_argument(
+        "--naegle-rules",
+        action="store_true",
+        help="Apply Naegle 2021 ten rules of academic slide design (opt-in).",
+    )
     args = parser.parse_args()
 
     try:
@@ -58,6 +69,8 @@ def main() -> int:
                 length_hint=args.length,
                 max_iterations=args.max_iterations,
                 llm_pref=args.llm,
+                style=args.style,
+                apply_naegle=args.naegle_rules,
             )
             path = result.pdf_path
         else:
@@ -69,6 +82,8 @@ def main() -> int:
                 length_hint=args.length,
                 max_iterations=args.max_iterations,
                 llm_pref=args.llm,
+                style=args.style,
+                apply_naegle=args.naegle_rules,
             )
             path = result_pptx.pptx_path
     except Exception as exc:

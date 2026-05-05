@@ -1,24 +1,17 @@
-"""ui-ux-pro-max integration layer.
+"""Design presets — palette + typography + composition hints, curated for decks."""
 
-Public API exposed here is the only contract `ia_pptx.core` consumes for
-design intelligence. Vendored upstream data is in `vendor/ui-ux-pro-max/`;
-this module reads from there with graceful fallback when unavailable.
-"""
-
-from ia_pptx.design.library import (
-    UPSTREAM_VERSION,
-    DesignLibrary,
+from ia_pptx.design.presets import (
+    PRESETS,
     Palette,
-    Style,
-    Typography,
-    get_design_library,
+    StylePreset,
+    get_preset,
+    list_preset_names,
 )
 
 __all__ = [
-    "UPSTREAM_VERSION",
-    "DesignLibrary",
+    "PRESETS",
     "Palette",
-    "Style",
-    "Typography",
-    "get_design_library",
+    "StylePreset",
+    "get_preset",
+    "list_preset_names",
 ]
