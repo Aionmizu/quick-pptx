@@ -1,4 +1,4 @@
-# ia-pptx-generator
+# quick-pptx
 
 **Editorial-grade decks via Claude + visual QA loop.** Claude writes the deck source code directly (pptxgenjs JS for editable `.pptx`, or HTML/CSS for publication-quality `.pdf`). A vision pass renders each slide to an image, spots rendering bugs, and asks Claude to revise. Bounded to 3 iterations. No fixed templates. 20 hand-curated style presets (palette + Google Fonts pairing) drawn from `ui-ux-pro-max`.
 
@@ -143,7 +143,9 @@ Key design choices:
 - **No JSON intermediate, no fixed layouts.** Claude has full creative control over per-slide composition.
 - **Visual QA loop self-heals.** Pathological CSS (3-level nested grids that hang WeasyPrint, font overflows, empty grid cells) gets caught and surfaced as a fixable bug.
 - **LLM swappable.** Anthropic API or Claude Code CLI subprocess — same `LLM` interface. Claude Code uses the subscription, no API top-up.
-- **Style presets locked.** Each generation picks one of 20 presets; the LLM **must** use that preset's heading + body fonts and palette. Back-to-back decks no longer share a typeface.
+- **Style presets locked.** Each generation picks one of 67 themes (parsed from the vendored `ui-ux-pro-max` library — Brutalism, Editorial Magazine, Cyberpunk, Organic Biophilic, Vintage Analog, etc.); the LLM **must** use that theme's heading + body fonts and palette. Back-to-back decks no longer share a typeface.
+- **Plan critic + final critique.** A pre-flight critic refines your prompt before generation, and a 10-atom Naegle-aware rubric scores each slide after rendering. Below threshold → one revise pass + re-critique.
+- **Image generation (optional).** Claude Code can call a `gen_image.py` helper backed by Google Gemini Nano Banana for explanatory diagrams when the slide carries a concept that prose can't deliver.
 
 ## Project layout
 
@@ -155,7 +157,10 @@ src/ia_pptx/
     freeform_pdf.py     # WeasyPrint pipeline
     exceptions.py
   design/
-    presets.py          # 20 style presets (palette + fonts + composition mood)
+    presets.py          # 67 themes parsed from vendor/ui-ux-pro-max (palette + fonts + mood)
+    ../prompts/         # gen + revise + visual_qa + plan_critic + critique_rubric + naegle_rules
+  core/critique.py      # 10-atom rubric + 1 revise pass below threshold
+  core/plan_critic.py   # adversarial pre-flight prompt review
   prompts/              # gen + revise + visual_qa system prompts (× pptx/pdf) + Naegle rules
   auth.py               # API key resolution
   __main__.py           # CLI
@@ -171,7 +176,16 @@ app.py                  # Streamlit web app
 
 ## Status
 
-v0.2 — pivoted from a templated 4-layout pipeline to the freeform + visual QA architecture, then added 20 ui-ux-pro-max-derived style presets, a Naegle academic-rules toggle, verbosity guardrails, and a font installer. See `documentations/PIVOT-2026-05.md` for the architectural pivot rationale.
+v0.2 — pivoted from a templated 4-layout pipeline to the freeform + visual QA architecture, then layered on:
+
+- 67 ui-ux-pro-max themes with auto-pick (LLM picks the best fit for the prompt)
+- Plan critic (pre-flight adversarial review) + final critique (10-atom rubric, ONE revise pass below threshold)
+- Nano Banana image generation (Gemini, optional)
+- Configurable Claude Code `--effort` (low / medium / high / xhigh / max)
+- Settings tab in Streamlit for both API keys + Claude Code detection status
+- Cancel button + live event log + per-slide critique scores
+
+See `documentations/PIVOT-2026-05.md` for the architectural pivot rationale.
 
 Roadmap:
 - Image strategy via Unsplash / Pexels APIs (full-bleed photo backgrounds).

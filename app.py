@@ -46,7 +46,7 @@ class _Cancelled(RuntimeError):
 logger = logging.getLogger("ia_pptx.streamlit")
 
 st.set_page_config(
-    page_title="ia-pptx-generator",
+    page_title="quick-pptx",
     page_icon="📐",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -79,7 +79,7 @@ def _load_css() -> str:
 
 st.markdown(_load_css(), unsafe_allow_html=True)
 st.markdown(
-    f'<div class="ia-app-header"><div class="ia-brand">ia-pptx-generator</div>'
+    f'<div class="ia-app-header"><div class="ia-brand">quick-pptx</div>'
     f'<div class="ia-version-chip">v{__version__}</div></div>',
     unsafe_allow_html=True,
 )
@@ -88,6 +88,59 @@ st.markdown(
     "Pick a format, describe the deck, watch Claude render → screenshot → fix → ship.</div>",
     unsafe_allow_html=True,
 )
+
+
+# ── Help & docs (collapsed by default — read-once info) ────────────────────
+
+with st.expander("📚 How does this work? · Install & first-run help", expanded=False):
+    st.markdown(
+        """
+**The pipeline (per generation)**
+
+1. **Plan critic** — an adversarial pre-flight reviews your prompt, refines
+   it, drafts a slide-by-slide outline, suggests where generated images
+   would carry information.
+2. **Theme + fonts** — one of 67 themes from `ui-ux-pro-max` is picked
+   (you, or "Auto" = an LLM picks the best fit). The theme bundles a
+   palette, a Google Fonts pairing, and a composition mood.
+3. **Generate** — Claude writes the deck *as code* (pptxgenjs JS for
+   `.pptx`, HTML+CSS for `.pdf`). With the Claude Code CLI, it can also
+   install ad-hoc npm/pip packages and call `gen_image.py` (Gemini Nano
+   Banana) for explanatory diagrams.
+4. **Render** — Node + LibreOffice → per-slide JPGs.
+5. **Visual QA loop** — a vision model spots rendering bugs (overflow,
+   overlap, contrast, orphan words). Up to 3 revise passes.
+6. **Final critique** — 10-atom Naegle-aware rubric scores each slide.
+   Below threshold → ONE more revise pass. Per-slide scores persisted
+   to `<deck>.critique.json` next to the deck.
+
+**First-run install** (≈ 5 minutes, one-time)
+
+```bash
+git clone https://github.com/Aionmizu/quick-pptx
+cd quick-pptx
+pip install -e ".[dev]"
+npm install
+python3 scripts/install_fonts.py    # ≈ 30 seconds, ≈ 290 font files
+```
+
+You also need **LibreOffice** + **poppler-utils** (`pdftoppm`) on your
+system: `brew install libreoffice poppler` (macOS) or
+`sudo apt install libreoffice poppler-utils` (Debian/Ubuntu).
+
+**Authentication** — pick one:
+
+- **Claude Code CLI** (recommended if you have a subscription) — install
+  from [claude.com/code](https://claude.com/code). The pipeline will
+  detect it and route through your subscription.
+- **Anthropic API key** — paste it in the **🔑 Settings** panel below.
+
+**Costs (rough)** — `--effort max` (default) is ~$3–6 per deck via API,
+slightly more on Claude Code. Drop to `--effort medium` for fast drafts
+at ~$1–2.
+        """,
+        unsafe_allow_html=False,
+    )
 
 
 # ── Settings — API keys + Claude Code detection ────────────────────────────
@@ -267,21 +320,50 @@ for p in slide_friendly:
 for p in ui_only:
     theme_options[f"{p.display_name} — {p.font_pair_label} (less suitable for slides)"] = p.name
 
-theme_label = st.selectbox(
-    "Theme",
-    options=list(theme_options.keys()),
-    index=0,
-    help=(
-        "Each theme bundles a palette + typography pairing + composition mood "
-        "(from the vendored ui-ux-pro-max library — 67 themes covering "
-        "Minimalism, Brutalism, Editorial Magazine, Cyberpunk, Organic Biophilic, "
-        "Vintage Analog, etc.). The font goes with the theme — you pick the theme. "
-        "**Auto** runs a small LLM call that picks the best-fitting theme for "
-        "your prompt (e.g. historical → Editorial / Vintage Analog; tech pitch → "
-        "Minimalism / AI-Native UI; research → Academic / E-Ink)."
-    ),
-)
-selected_style = theme_options[theme_label]
+col_theme, col_lang = st.columns([3, 1])
+
+with col_theme:
+    theme_label = st.selectbox(
+        "Theme",
+        options=list(theme_options.keys()),
+        index=0,
+        help=(
+            "Each theme bundles a palette + typography pairing + composition mood "
+            "(from the vendored ui-ux-pro-max library — 67 themes covering "
+            "Minimalism, Brutalism, Editorial Magazine, Cyberpunk, Organic Biophilic, "
+            "Vintage Analog, etc.). The font goes with the theme — you pick the theme. "
+            "**Auto** runs a small LLM call that picks the best-fitting theme for "
+            "your prompt (e.g. historical → Editorial / Vintage Analog; tech pitch → "
+            "Minimalism / AI-Native UI; research → Academic / E-Ink)."
+        ),
+    )
+    selected_style = theme_options[theme_label]
+
+with col_lang:
+    LANGUAGES = [
+        "Auto (from prompt)",
+        "Français",
+        "English",
+        "Español",
+        "Deutsch",
+        "Italiano",
+        "Português",
+        "Nederlands",
+        "Polski",
+        "日本語",
+        "中文",
+    ]
+    deck_language = st.selectbox(
+        "Deck language",
+        options=LANGUAGES,
+        index=0,
+        help=(
+            "Override the deck's output language. **Auto** uses the language "
+            "of your prompt (e.g. a French prompt → French deck). Pick a "
+            "specific language to force it (e.g. write the deck in English "
+            "even if your prompt is in French)."
+        ),
+    )
 
 # ── Critic loops (plan critic + final critique) ─────────────────────────────
 
@@ -403,8 +485,18 @@ def _start_worker(*, kind: str) -> None:
     ss.worker_cancelled = False
     ss.worker_running = True
 
+    # Force a specific output language by prepending a directive to the
+    # prompt. "Auto" lets Claude pick from the prompt's own language.
+    final_prompt = prompt
+    if deck_language and not deck_language.startswith("Auto"):
+        final_prompt = (
+            f"Write the entire deck (titles, body, captions, footers) "
+            f"in {deck_language}, regardless of the language used below.\n\n"
+            f"{prompt}"
+        )
+
     snapshot = {
-        "prompt": prompt,
+        "prompt": final_prompt,
         "output_path": output_path,
         "llm_pref": llm_pref,
         # length_hint may be None (Auto / forced by Naegle) — pass through.
