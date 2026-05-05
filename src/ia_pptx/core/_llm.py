@@ -97,6 +97,8 @@ class AnthropicAPI:
 # Minimization flags so each subprocess call doesn't load the user's whole
 # project context (CLAUDE.md, memory, MCP servers, slash commands, settings).
 # Without these, a single PONG round-trip costs ~$1.25; with them, ~$0.03.
+# `--effort max` requests the model's deepest reasoning capability — quality
+# over efficiency, per the project's stated tradeoff.
 _CLAUDE_MIN_FLAGS = [
     "--permission-mode",
     "bypassPermissions",
@@ -108,8 +110,56 @@ _CLAUDE_MIN_FLAGS = [
     "--disable-slash-commands",
     "--setting-sources",
     "",
+    "--effort",
+    "max",
 ]
-_CLAUDE_TIMEOUT_S = 600
+# Up to 25 min — Claude Code may install npm/pip packages, run them, fix
+# issues, then clean up. Quality over speed.
+_CLAUDE_TIMEOUT_S = 1500
+
+
+_CARTE_BLANCHE_NOTE = """
+
+═══════════════════════════════════════════════════════════════════════════
+CARTE BLANCHE — TOOLS, INSTALLS, AND CLEANUP DISCIPLINE
+═══════════════════════════════════════════════════════════════════════════
+You have full agentic access in this run: Bash, Read, Write, Edit. Use them
+freely to deliver the BEST POSSIBLE deck — quality over efficiency, always.
+
+WHAT YOU MAY DO:
+  - Install any npm package you need (e.g. extra pptxgenjs plugins, image
+    libraries, custom shape libraries) via `npm install --no-save <pkg>`.
+  - Install any pip package you need via `pip install --user <pkg>`.
+  - Install npm-global packages if absolutely required: `npm install -g <pkg>`.
+  - Write helper files or scripts to a temp directory if it makes the deck
+    better.
+  - Run shell commands to inspect, test, lint your generated code before
+    returning it.
+
+CLEANUP DISCIPLINE (NON-NEGOTIABLE):
+  - You MUST track every package you install in this run. At the end, remove
+    EXACTLY those packages — `npm uninstall <pkg>` for each you ran
+    `npm install` on, `pip uninstall -y <pkg>` for each pip install.
+  - NEVER remove packages, files, or any system state you did not personally
+    install or create in this run. The user has their own setup; do not
+    touch it.
+  - If unsure whether something existed before you started — leave it alone.
+  - If you wrote helper files outside the deliverable output, delete them
+    at the end.
+  - Do not touch user dotfiles, package.json, package-lock.json, requirements,
+    pyproject.toml, or any project config. If you need a temp install, prefer
+    `--no-save` (npm) or `--user` (pip) so the project files stay clean.
+
+PRIORITY:
+  Quality of the deck > speed of generation > cost. Take your time, install
+  what you need, polish the output. The user explicitly chose `--effort max`.
+═══════════════════════════════════════════════════════════════════════════
+"""
+
+
+def claude_code_available() -> bool:
+    """True iff the `claude` CLI is on PATH and looks like Claude Code."""
+    return shutil.which("claude") is not None
 
 
 def _claude_run(
@@ -118,7 +168,13 @@ def _claude_run(
     """Invoke `claude` and parse the JSON envelope. Raises on non-zero exit."""
     claude = shutil.which("claude")
     if not claude:
-        raise RuntimeError("Claude Code CLI (`claude`) not found on PATH")
+        raise RuntimeError(
+            "Claude Code CLI (`claude`) not found on PATH.\n"
+            "  - If you have a Claude subscription, install Claude Code from "
+            "https://claude.com/code and ensure `which claude` resolves.\n"
+            "  - Otherwise, run `python3 -m ia_pptx login` to set an "
+            "Anthropic API key and use `--llm api`."
+        )
     cmd = [claude, "-p", *_CLAUDE_MIN_FLAGS, *args]
     proc = subprocess.run(
         cmd,
@@ -165,15 +221,16 @@ class ClaudeCodeCLI:
         # max_tokens isn't directly settable on Claude Code CLI; the model
         # picks. Most calls are well under the model's max anyway.
         del max_tokens
-        # IMPORTANT: pipe the user prompt via stdin, not as a positional arg.
-        # `--tools <name...>` is variadic and would consume the next positional,
-        # so a positional prompt at the tail is fragile. Stdin sidesteps that.
+        # Carte blanche — Claude has full default toolset (Bash, Edit, Write,
+        # Read) so it can install packages, run commands, etc. The system
+        # prompt addendum tells it to clean up everything it installs.
+        # Prompt is piped via stdin to dodge variadic-flag positional issues.
         envelope = _claude_run(
             args=[
                 "--model",
                 self._model,
                 "--system-prompt",
-                system,
+                system + _CARTE_BLANCHE_NOTE,
             ],
             stdin_text=user,
             cwd=self._isolated_cwd,
@@ -215,23 +272,43 @@ def get_llm(prefer: str = "auto") -> LLM:
 
     `prefer`:
       - "auto": Claude Code CLI if `claude` is on PATH, else Anthropic API.
-      - "code": force Claude Code CLI (errors if unavailable).
-      - "api":  force Anthropic API (errors if no key).
+        Logs which one was picked at INFO level.
+      - "code": force Claude Code CLI (raises an actionable error if absent).
+      - "api":  force Anthropic API (raises if no key).
     """
     if prefer == "code":
+        if not claude_code_available():
+            raise RuntimeError(
+                "`--llm code` was requested but the `claude` CLI is not on PATH.\n"
+                "  - Install Claude Code from https://claude.com/code if you have a subscription.\n"
+                "  - Otherwise use `--llm api` (needs ANTHROPIC_API_KEY)."
+            )
+        logger.info("LLM: using Claude Code CLI (forced via --llm code).")
         return ClaudeCodeCLI()
     if prefer == "api":
+        logger.info("LLM: using Anthropic API (forced via --llm api).")
         return AnthropicAPI()
     if prefer == "auto":
-        # Prefer Claude Code if available — the user's subscription covers it.
-        if shutil.which("claude"):
+        if claude_code_available():
             try:
-                return ClaudeCodeCLI()
+                client = ClaudeCodeCLI()
+                logger.info("LLM: detected Claude Code CLI — using your subscription.")
+                return client
             except Exception as exc:
                 logger.warning("Claude Code CLI present but failed to init: %s", exc)
-        # Fallback: API.
+        logger.info(
+            "LLM: Claude Code CLI not detected — falling back to Anthropic API "
+            "(needs ANTHROPIC_API_KEY or `python3 -m ia_pptx login`)."
+        )
         return AnthropicAPI()
     raise ValueError(f"Unknown LLM preference: {prefer!r}")
 
 
-__all__ = ["DEFAULT_MODEL", "LLM", "AnthropicAPI", "ClaudeCodeCLI", "get_llm"]
+__all__ = [
+    "DEFAULT_MODEL",
+    "LLM",
+    "AnthropicAPI",
+    "ClaudeCodeCLI",
+    "claude_code_available",
+    "get_llm",
+]

@@ -29,6 +29,7 @@ from streamlit.runtime.scriptrunner import add_script_run_ctx
 from ia_pptx import __version__
 from ia_pptx.auth import load_api_key
 from ia_pptx.core import freeform_generate, freeform_pdf_generate
+from ia_pptx.core._llm import claude_code_available
 from ia_pptx.design import PRESETS
 
 
@@ -223,6 +224,29 @@ with st.expander("LLM backend", expanded=False):
         index=0,
     )
     llm_pref = LLM_PREFS[llm_label]
+
+    # Detection status — surface clearly so the user knows what will run.
+    cc_present = claude_code_available()
+    if cc_present:
+        st.success(
+            "✅  Claude Code CLI detected on PATH. "
+            "Auto / `code` will route through your subscription with `--effort max` "
+            "and full tools (Bash, Read, Write, Edit) so the model can install npm/pip "
+            "packages it needs and clean them up afterward."
+        )
+    else:
+        st.info(
+            "ℹ️  Claude Code CLI not detected on PATH. "
+            "Auto will fall back to the Anthropic API. "
+            "If you wanted the subscription path, install Claude Code from "
+            "[claude.com/code](https://claude.com/code) and refresh."
+        )
+    if llm_pref == "code" and not cc_present:
+        st.error(
+            "You picked **Claude Code CLI** but `claude` is not on PATH. "
+            "The Generate button will fail until either (a) you install Claude Code, "
+            "or (b) you switch this selector to **Auto** or **Anthropic API**."
+        )
 
 
 # ── Generate / Cancel — runs in a background thread so Cancel can interrupt ─
