@@ -27,7 +27,13 @@ import streamlit as st
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 
 from ia_pptx import __version__
-from ia_pptx.auth import load_api_key
+from ia_pptx.auth import (
+    GEMINI_KEYS_URL,
+    load_api_key,
+    load_gemini_key,
+    save_api_key,
+    save_gemini_key,
+)
 from ia_pptx.core import freeform_generate, freeform_pdf_generate
 from ia_pptx.core._llm import claude_code_available
 from ia_pptx.design import PRESETS
@@ -84,17 +90,82 @@ st.markdown(
 )
 
 
-# ── API key check ──────────────────────────────────────────────────────────
+# ── Settings — API keys + Claude Code detection ────────────────────────────
 
 API_KEY = load_api_key()
-if not API_KEY:
+GEMINI_KEY = load_gemini_key()
+CC_PRESENT = claude_code_available()
+
+with st.expander(
+    "🔑 Settings — API keys",
+    expanded=not (API_KEY or CC_PRESENT),
+):
+    st.write(
+        "All keys are stored in `~/.config/ia-pptx/credentials.json` "
+        "(mode 0600 — readable only by you, never committed)."
+    )
+    st.markdown(f"**Claude Code CLI**: {'✅ detected on PATH' if CC_PRESENT else 'ℹ️ not detected'}")
+
+    new_anthropic = st.text_input(
+        "Anthropic API key (Claude)",
+        value="",
+        type="password",
+        placeholder="sk-ant-... — leave blank to keep existing" if API_KEY else "sk-ant-...",
+        help=(
+            "Required if Claude Code CLI is not installed. "
+            f"{'A key is currently saved.' if API_KEY else 'No key saved yet.'} "
+            "[Get one →](https://console.anthropic.com/settings/keys)"
+        ),
+    )
+    new_gemini = st.text_input(
+        "Gemini / Nano Banana API key (image generation, optional)",
+        value="",
+        type="password",
+        placeholder=("AIzaSy... — leave blank to keep existing" if GEMINI_KEY else "AIzaSy..."),
+        help=(
+            "Optional. Used by Claude (via the carte-blanche path) to generate explanatory "
+            "diagrams and illustrations during deck generation. "
+            f"{'A key is currently saved.' if GEMINI_KEY else 'No key saved yet.'} "
+            f"[Get one from Google AI Studio →]({GEMINI_KEYS_URL})"
+        ),
+    )
+
+    col_save, col_status = st.columns([1, 3])
+    with col_save:
+        if st.button("💾 Save keys", use_container_width=True, type="primary"):
+            saved: list[str] = []
+            try:
+                if new_anthropic.strip():
+                    save_api_key(new_anthropic.strip())
+                    saved.append("Anthropic")
+                if new_gemini.strip():
+                    save_gemini_key(new_gemini.strip())
+                    saved.append("Gemini")
+            except Exception as exc:
+                st.error(f"Save failed: {exc}")
+            else:
+                if saved:
+                    st.success(f"Saved: {', '.join(saved)}. Refresh the page to pick up.")
+                else:
+                    st.info("Nothing to save — both inputs are empty.")
+    with col_status:
+        bits = []
+        if API_KEY:
+            bits.append("Anthropic ✅")
+        else:
+            bits.append("Anthropic ❌")
+        if GEMINI_KEY:
+            bits.append("Gemini ✅")
+        else:
+            bits.append("Gemini ❌ (image-gen disabled)")
+        st.caption(" · ".join(bits))
+
+
+if not API_KEY and not CC_PRESENT:
     st.error(
-        "**No Anthropic API key found.** The Generate button stays disabled until a key is available.\n\n"
-        "- **Recommended:** in a terminal at the repo root, run `python3 -m ia_pptx login` "
-        "and paste your key. It's saved to `~/.config/ia-pptx/credentials.json` (mode 0600), then refresh.\n"
-        "- **Or** create a `.env` file at the repo root with one line: "
-        "`ANTHROPIC_API_KEY=sk-ant-...`, then refresh.\n\n"
-        "[Get a key from console.anthropic.com →](https://console.anthropic.com/settings/keys)"
+        "**No Claude backend available.** Install Claude Code from "
+        "[claude.com/code](https://claude.com/code), or save an Anthropic API key "
+        "in the Settings panel above."
     )
 
 
@@ -212,6 +283,40 @@ theme_label = st.selectbox(
 )
 selected_style = theme_options[theme_label]
 
+# ── Critic loops (plan critic + final critique) ─────────────────────────────
+
+with st.expander("Critic loops (plan + final critique)", expanded=False):
+    plan_critic_enabled = st.checkbox(
+        "🔍 Plan critic (pre-flight adversarial review)",
+        value=True,
+        help=(
+            "Before generation, an LLM critic reviews your prompt: spots vagueness, "
+            "missing data anchors, suggests a tightened prompt + slide-by-slide outline + "
+            "where generated images would actually carry information. The refined prompt "
+            "auto-applies. Verdict 'block' surfaces concerns to you instead of generating."
+        ),
+    )
+    final_critique_enabled = st.checkbox(
+        "🎯 Final critique (10-atom rubric + 1 revise pass)",
+        value=True,
+        help=(
+            "After visual QA fixes rendering bugs, a critic scores each slide on 10 "
+            "Naegle-aware atoms: title-as-conclusion, ≤6 elements, distracted-person "
+            "test, hierarchy, novelty, source brevity, etc. Below threshold → ONE "
+            "revise pass with the failed atoms as fix hints. Per-slide scores persist "
+            "to a `.critique.json` next to the deck."
+        ),
+    )
+    critique_threshold = st.slider(
+        "Critique pass threshold",
+        min_value=50,
+        max_value=95,
+        value=70,
+        step=5,
+        disabled=not final_critique_enabled,
+        help="Deck-level score (0–100) below which the critic triggers ONE revise pass.",
+    )
+
 with st.expander("LLM backend", expanded=False):
     LLM_PREFS = {
         "Auto (Claude Code if installed, else API)": "auto",
@@ -286,6 +391,9 @@ def _start_worker(*, kind: str) -> None:
         "max_iterations": int(max_iterations),
         "style": selected_style,
         "apply_naegle": apply_naegle,
+        "plan_critic_enabled": plan_critic_enabled,
+        "final_critique_enabled": final_critique_enabled,
+        "critique_threshold": float(critique_threshold),
     }
 
     def _progress(msg: str) -> None:
@@ -377,8 +485,57 @@ if ss.worker_result is not None:
     ss.last_output_path = str(final_path)
     ss.last_jpgs = [str(p) for p in result.jpg_paths]
     st.success(f"Done in {result.iterations} iteration(s) · {len(last_bugs)} bug(s) remaining")
+
+    # Plan critic review (pre-flight)
+    plan_review = getattr(result, "plan_review", None)
+    if plan_review is not None and (plan_review.concerns or plan_review.verdict != "ship"):
+        verdict_emoji = {"ship": "✅", "refine": "✏️", "block": "🛑"}.get(plan_review.verdict, "ℹ️")
+        with st.expander(
+            f"{verdict_emoji}  Plan critic — verdict: {plan_review.verdict.upper()}",
+            expanded=plan_review.verdict != "ship",
+        ):
+            if plan_review.concerns:
+                st.markdown("**Concerns:**")
+                for c in plan_review.concerns:
+                    st.write(f"- {c}")
+            if plan_review.missing_anchors:
+                st.markdown("**Missing anchors (consider adding):**")
+                for a in plan_review.missing_anchors:
+                    st.write(f"- {a}")
+            if plan_review.verdict == "refine":
+                st.markdown("**Refined prompt used for generation:**")
+                st.info(plan_review.refined_prompt)
+
+    # Final critique scores (10-atom rubric)
+    critique = getattr(result, "critique", None)
+    if critique is not None:
+        score = critique.overall_score
+        passed = critique.passed
+        emoji = "🟢" if passed else "🟡"
+        with st.expander(
+            f"{emoji}  Final critique — {score:.0f}/100 "
+            f"({'pass' if passed else 'below threshold'} · {critique.threshold:.0f})",
+            expanded=not passed,
+        ):
+            st.write(critique.summary_line())
+            if critique.repeated_signatures:
+                st.warning(
+                    "3+ slides share the same layout signature — the deck "
+                    "feels templated. The revise pass should have addressed this."
+                )
+            for slide in critique.per_slide:
+                failed = slide.failed_atoms
+                if not failed:
+                    continue
+                st.markdown(
+                    f"**Slide {slide.slide_index}** · score {slide.score:.0f}/100"
+                    + (f" — {slide.notes}" if slide.notes else "")
+                )
+                for atom in failed:
+                    st.write(f"  - ❌ `{atom.name}` — {atom.evidence}")
+
     if last_bugs:
-        with st.expander(f"⚠️  {len(last_bugs)} unfixed bug(s) — visual QA flagged"):
+        with st.expander(f"⚠️  {len(last_bugs)} unfixed visual-QA bug(s)"):
             for bug in last_bugs:
                 st.write(
                     f"**Slide {bug.get('slide_index', '?')}** "

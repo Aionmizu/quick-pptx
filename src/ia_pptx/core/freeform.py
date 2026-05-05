@@ -27,6 +27,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ia_pptx.core._llm import LLM, get_llm
+from ia_pptx.core.critique import (
+    DeckCritique,
+    critique_deck,
+    critique_revise_payload,
+    critique_to_dict,
+)
+from ia_pptx.core.plan_critic import (
+    PlanReview,
+    critique_plan,
+    format_plan_for_generation,
+)
 from ia_pptx.design import StylePreset, get_preset
 from ia_pptx.prompts import load_prompt
 
@@ -49,6 +60,8 @@ class FreeformResult:
     final_script: str
     bug_history: list[list[dict]]  # one list per iteration
     preset: StylePreset | None = None  # which style preset was used
+    plan_review: PlanReview | None = None  # adversarial pre-flight review
+    critique: DeckCritique | None = None  # final 10-atom rubric scoring
 
 
 def _strip_code_fences(text: str) -> str:
@@ -242,6 +255,9 @@ def freeform_generate(
     progress: ProgressFn | None = None,
     style: str | None = "auto",
     apply_naegle: bool = False,
+    plan_critic_enabled: bool = True,
+    final_critique_enabled: bool = True,
+    critique_threshold: float = 70.0,
 ) -> FreeformResult:
     """Generate a deck via the freeform Claude-writes-pptxgenjs pipeline.
 
@@ -251,9 +267,14 @@ def freeform_generate(
         llm_pref: "auto" (default), "code" (force Claude Code CLI), or "api".
         length_hint: Optional target slide count.
         max_iterations: Max revise loops if visual QA finds bugs (default 3).
-        progress: Optional callback receiving short human-readable phase messages
-            ("Drafting initial script…", "Iteration 2 — running Node…", etc.).
-            Used by Streamlit to drive a live status panel.
+        progress: Optional callback receiving short human-readable phase messages.
+        style: Theme preset slug, or "auto".
+        apply_naegle: When True, append Naegle 2021's 10 rules to the prompt.
+        plan_critic_enabled: Run an adversarial pre-flight review of the prompt
+            (concerns + refined prompt + slide outline + image suggestions).
+        final_critique_enabled: After visual QA, score each slide on the 10-atom
+            rubric. Below threshold → ONE revise pass + re-critique.
+        critique_threshold: Deck-level pass threshold (0..100, default 70).
     """
 
     def _emit(msg: str) -> None:
@@ -286,8 +307,40 @@ def freeform_generate(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     work_dir = output_path.parent
 
+    plan_review: PlanReview | None = None
+    effective_prompt = prompt
+    effective_length_hint = length_hint
+    if plan_critic_enabled:
+        _emit("Plan critic — adversarial review of your prompt…")
+        plan_review = critique_plan(
+            prompt,
+            length_hint=length_hint,
+            llm=llm,
+            style_name=preset.name,
+            apply_naegle=apply_naegle,
+        )
+        _emit(
+            f"Plan critic verdict: {plan_review.verdict} ({len(plan_review.concerns)} concern(s))"
+        )
+        if plan_review.verdict == "block":
+            raise RuntimeError(
+                "Plan critic blocked generation. Concerns:\n  - "
+                + "\n  - ".join(plan_review.concerns)
+                + "\n\nRefine your prompt and re-run."
+            )
+        if plan_review.verdict == "refine":
+            effective_prompt = plan_review.refined_prompt
+            _emit("Plan critic refined prompt — using tightened version.")
+        if length_hint is None and plan_review.suggested_length:
+            effective_length_hint = plan_review.suggested_length
+            _emit(f"Plan critic suggested length: {effective_length_hint} slides.")
+        # Append the outline as a hint for the generation prompt.
+        outline_block = format_plan_for_generation(plan_review)
+        if outline_block:
+            effective_prompt = effective_prompt + outline_block
+
     _emit("Drafting initial pptxgenjs script…")
-    script = _generate_script(llm, prompt, length_hint, preset, apply_naegle)
+    script = _generate_script(llm, effective_prompt, effective_length_hint, preset, apply_naegle)
     _emit(f"Initial script ready ({len(script):,} chars)")
 
     bug_history: list[list[dict]] = []
@@ -341,6 +394,35 @@ def freeform_generate(
         _emit(f"{len(all_bugs)} bug(s) found — asking LLM to revise (iter {iteration + 1})…")
         script = _revise_script(llm, script, all_bugs)
 
+    # ── Final critique pass (10-atom rubric) — optional, ONE revise loop ─────
+    final_critique: DeckCritique | None = None
+    if final_critique_enabled and jpgs:
+        _emit(f"Final critique — scoring {len(jpgs)} slide(s) on the 10-atom rubric…")
+        final_critique = critique_deck(jpgs, llm, threshold=critique_threshold)
+        _emit(final_critique.summary_line())
+        if not final_critique.passed:
+            critique_bugs = critique_revise_payload(final_critique)
+            if critique_bugs:
+                _emit(
+                    f"Below threshold — ONE revise pass with "
+                    f"{len(critique_bugs)} critique finding(s)…"
+                )
+                script = _revise_script(llm, script, critique_bugs)
+                ok, output = _write_and_run_node(script, work_dir, output_path)
+                if ok:
+                    _emit("Re-rendering JPGs after critique-driven revise…")
+                    jpgs = _pptx_to_jpgs(output_path, work_dir)
+                    _emit("Re-critiquing after revise…")
+                    final_critique = critique_deck(jpgs, llm, threshold=critique_threshold)
+                    _emit(final_critique.summary_line())
+        # Persist the critique JSON next to the deck.
+        critique_path = output_path.with_suffix(".critique.json")
+        critique_path.write_text(
+            json.dumps(critique_to_dict(final_critique), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        _emit(f"Critique persisted: {critique_path.name}")
+
     return FreeformResult(
         pptx_path=output_path,
         jpg_paths=jpgs,
@@ -348,6 +430,8 @@ def freeform_generate(
         final_script=script,
         bug_history=bug_history,
         preset=preset,
+        plan_review=plan_review,
+        critique=final_critique,
     )
 
 

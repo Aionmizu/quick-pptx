@@ -26,6 +26,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ia_pptx.core._llm import LLM, get_llm
+from ia_pptx.core.critique import (
+    DeckCritique,
+    critique_deck,
+    critique_revise_payload,
+    critique_to_dict,
+)
+from ia_pptx.core.plan_critic import (
+    PlanReview,
+    critique_plan,
+    format_plan_for_generation,
+)
 from ia_pptx.design import StylePreset, get_preset
 from ia_pptx.prompts import load_prompt
 
@@ -49,6 +60,8 @@ class FreeformPdfResult:
     final_html: str
     bug_history: list[list[dict]]
     preset: StylePreset | None = None
+    plan_review: PlanReview | None = None
+    critique: DeckCritique | None = None
 
 
 def _strip_code_fences(text: str) -> str:
@@ -208,11 +221,16 @@ def freeform_pdf_generate(
     progress: ProgressFn | None = None,
     style: str | None = "auto",
     apply_naegle: bool = False,
+    plan_critic_enabled: bool = True,
+    final_critique_enabled: bool = True,
+    critique_threshold: float = 70.0,
 ) -> FreeformPdfResult:
     """Generate a PDF deck via the freeform Claude-writes-HTML pipeline.
 
-    `progress` is an optional callback that receives short phase strings —
-    used by Streamlit to drive a live status panel.
+    `progress` is an optional callback that receives short phase strings.
+    `plan_critic_enabled` runs an adversarial pre-flight review.
+    `final_critique_enabled` scores each slide on a 10-atom rubric and runs
+    one revise pass if the deck score is below `critique_threshold`.
     """
 
     def _emit(msg: str) -> None:
@@ -241,8 +259,39 @@ def freeform_pdf_generate(
     work_dir = output_path.parent
     html_path = work_dir / "deck_freeform.html"
 
+    plan_review: PlanReview | None = None
+    effective_prompt = prompt
+    effective_length_hint = length_hint
+    if plan_critic_enabled:
+        _emit("Plan critic — adversarial review of your prompt…")
+        plan_review = critique_plan(
+            prompt,
+            length_hint=length_hint,
+            llm=llm,
+            style_name=preset.name,
+            apply_naegle=apply_naegle,
+        )
+        _emit(
+            f"Plan critic verdict: {plan_review.verdict} ({len(plan_review.concerns)} concern(s))"
+        )
+        if plan_review.verdict == "block":
+            raise RuntimeError(
+                "Plan critic blocked generation. Concerns:\n  - "
+                + "\n  - ".join(plan_review.concerns)
+                + "\n\nRefine your prompt and re-run."
+            )
+        if plan_review.verdict == "refine":
+            effective_prompt = plan_review.refined_prompt
+            _emit("Plan critic refined prompt — using tightened version.")
+        if length_hint is None and plan_review.suggested_length:
+            effective_length_hint = plan_review.suggested_length
+            _emit(f"Plan critic suggested length: {effective_length_hint} slides.")
+        outline_block = format_plan_for_generation(plan_review)
+        if outline_block:
+            effective_prompt = effective_prompt + outline_block
+
     _emit("Drafting initial HTML+CSS deck…")
-    html = _generate_html(llm, prompt, length_hint, preset, apply_naegle)
+    html = _generate_html(llm, effective_prompt, effective_length_hint, preset, apply_naegle)
     _emit(f"Initial HTML ready ({len(html):,} chars)")
 
     bug_history: list[list[dict]] = []
@@ -294,6 +343,34 @@ def freeform_pdf_generate(
         _emit(f"{len(all_bugs)} bug(s) found — asking LLM to revise (iter {iteration + 1})…")
         html = _revise_html(llm, html, all_bugs)
 
+    # ── Final critique pass (10-atom rubric) — optional, ONE revise loop ─────
+    final_critique: DeckCritique | None = None
+    if final_critique_enabled and jpgs:
+        _emit(f"Final critique — scoring {len(jpgs)} slide(s) on the 10-atom rubric…")
+        final_critique = critique_deck(jpgs, llm, threshold=critique_threshold)
+        _emit(final_critique.summary_line())
+        if not final_critique.passed:
+            critique_bugs = critique_revise_payload(final_critique)
+            if critique_bugs:
+                _emit(
+                    f"Below threshold — ONE revise pass with "
+                    f"{len(critique_bugs)} critique finding(s)…"
+                )
+                html = _revise_html(llm, html, critique_bugs)
+                ok, err = _render_pdf(html, html_path, output_path)
+                if ok:
+                    _emit("Re-rendering page JPGs after critique-driven revise…")
+                    jpgs = _pdf_to_jpgs(output_path, work_dir)
+                    _emit("Re-critiquing after revise…")
+                    final_critique = critique_deck(jpgs, llm, threshold=critique_threshold)
+                    _emit(final_critique.summary_line())
+        critique_path = output_path.with_suffix(".critique.json")
+        critique_path.write_text(
+            json.dumps(critique_to_dict(final_critique), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        _emit(f"Critique persisted: {critique_path.name}")
+
     return FreeformPdfResult(
         pdf_path=output_path,
         html_path=html_path,
@@ -302,6 +379,8 @@ def freeform_pdf_generate(
         final_html=html,
         bug_history=bug_history,
         preset=preset,
+        plan_review=plan_review,
+        critique=final_critique,
     )
 
 

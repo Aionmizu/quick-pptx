@@ -136,6 +136,31 @@ WHAT YOU MAY DO:
   - Run shell commands to inspect, test, lint your generated code before
     returning it.
 
+IMAGE GENERATION (Nano Banana / Gemini 2.5 Flash Image):
+  When the deck would benefit from an explanatory diagram, illustration, or
+  background graphic that a stock-photo search wouldn't satisfy, use:
+
+    python3 {gen_image_path} "<prompt>" --output /tmp/img-NN.png
+
+  Examples of legitimate uses:
+    - "diagram of the water cycle: evaporation, condensation, precipitation,
+      run-off, with subtle hand-drawn lines and earth-tone palette"
+    - "minimalist line illustration of a neural network with 3 layers"
+    - "abstract geometric texture in muted ink/rust tones, 1920×1080"
+
+  Then embed in pptxgenjs:
+    slide.addImage({{ path: "/tmp/img-NN.png", x: ..., y: ..., w: ..., h: ... }})
+  Or in HTML:
+    <img src="file:///tmp/img-NN.png" alt="...">
+
+  Use sparingly — only when the image carries information. A pretty
+  background can hurt the distracted-person test if it competes with the
+  message. The final critique pass WILL flag images that don't serve the
+  slide's takeaway.
+
+  If the helper exits non-zero (no API key, network error), proceed without
+  the image — do not block the deck.
+
 CLEANUP DISCIPLINE (NON-NEGOTIABLE):
   - You MUST track every package you install in this run. At the end, remove
     EXACTLY those packages — `npm uninstall <pkg>` for each you ran
@@ -149,12 +174,28 @@ CLEANUP DISCIPLINE (NON-NEGOTIABLE):
   - Do not touch user dotfiles, package.json, package-lock.json, requirements,
     pyproject.toml, or any project config. If you need a temp install, prefer
     `--no-save` (npm) or `--user` (pip) so the project files stay clean.
+  - Generated images in /tmp/ are fine to leave — the pipeline keeps them
+    next to the deck for inspection.
 
 PRIORITY:
   Quality of the deck > speed of generation > cost. Take your time, install
   what you need, polish the output. The user explicitly chose `--effort max`.
 ═══════════════════════════════════════════════════════════════════════════
 """
+
+
+def _resolve_gen_image_path() -> str:
+    """Find scripts/gen_image.py — used to inject its absolute path into
+    the carte-blanche prompt so Claude can call it correctly."""
+    here = Path(__file__).resolve()
+    for ancestor in here.parents:
+        candidate = ancestor / "scripts" / "gen_image.py"
+        if candidate.is_file():
+            return str(candidate)
+    return "scripts/gen_image.py"
+
+
+_CARTE_BLANCHE_NOTE = _CARTE_BLANCHE_NOTE.format(gen_image_path=_resolve_gen_image_path())
 
 
 def claude_code_available() -> bool:

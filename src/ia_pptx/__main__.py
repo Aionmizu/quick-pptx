@@ -75,12 +75,17 @@ def _cmd_generate(args: argparse.Namespace) -> int:
             max_iterations=args.max_iterations,
             style=args.style,
             apply_naegle=args.naegle_rules,
+            plan_critic_enabled=not args.no_plan_critic,
+            final_critique_enabled=not args.no_final_critique,
+            critique_threshold=args.critique_threshold,
         )
     except Exception as exc:
         print(f"Generation failed: {exc}", file=sys.stderr)
         return 1
     last_bugs = result.bug_history[-1] if result.bug_history else []
     _print_result(result.pptx_path, result.iterations, last_bugs, result.jpg_paths)
+    if result.critique is not None:
+        print(result.critique.summary_line())
     return 0
 
 
@@ -97,12 +102,17 @@ def _cmd_generate_pdf(args: argparse.Namespace) -> int:
             max_iterations=args.max_iterations,
             style=args.style,
             apply_naegle=args.naegle_rules,
+            plan_critic_enabled=not args.no_plan_critic,
+            final_critique_enabled=not args.no_final_critique,
+            critique_threshold=args.critique_threshold,
         )
     except Exception as exc:
         print(f"PDF generation failed: {exc}", file=sys.stderr)
         return 1
     last_bugs = result.bug_history[-1] if result.bug_history else []
     _print_result(result.pdf_path, result.iterations, last_bugs, result.jpg_paths)
+    if result.critique is not None:
+        print(result.critique.summary_line())
     return 0
 
 
@@ -160,20 +170,35 @@ def main() -> int:
         p.add_argument(
             "--style",
             default="auto",
-            help="Style preset name (e.g. 'editorial-classic', 'tech-startup'). "
-            "Default 'auto' picks one randomly. Use `ia-pptx list-styles` for all.",
+            help="Theme slug (e.g. 'editorial-grid-magazine'). Default 'auto' = LLM "
+            "picks the best fit for the prompt. Use `ia-pptx list-styles` for all 67.",
         )
         p.add_argument(
             "--naegle-rules",
             action="store_true",
-            help="Apply Naegle 2021's 10 rules of academic slide design. Off by default — "
-            "opt in for research / academic / educational decks.",
+            help="Apply Naegle 2021's 10 rules of academic slide design.",
         )
         p.add_argument(
             "--max-iterations",
             type=int,
             default=3,
-            help="Max revise loops if visual QA finds bugs (default 3).",
+            help="Max visual-QA revise loops (default 3).",
+        )
+        p.add_argument(
+            "--no-plan-critic",
+            action="store_true",
+            help="Disable the pre-flight adversarial plan review.",
+        )
+        p.add_argument(
+            "--no-final-critique",
+            action="store_true",
+            help="Disable the 10-atom final critique pass.",
+        )
+        p.add_argument(
+            "--critique-threshold",
+            type=float,
+            default=70.0,
+            help="Deck-level critique threshold (0–100, default 70). Below → 1 revise pass.",
         )
 
     p_gen = sub.add_parser(

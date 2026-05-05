@@ -24,9 +24,11 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 CONSOLE_KEYS_URL = "https://console.anthropic.com/settings/keys"
+GEMINI_KEYS_URL = "https://aistudio.google.com/apikey"
 CREDENTIALS_DIR = Path.home() / ".config" / "ia-pptx"
 CREDENTIALS_PATH = CREDENTIALS_DIR / "credentials.json"
 ENV_VAR_NAME = "ANTHROPIC_API_KEY"
+GEMINI_ENV_VAR = "GEMINI_API_KEY"
 
 
 def _try_load_dotenv() -> None:
@@ -50,18 +52,65 @@ def _try_load_dotenv() -> None:
     load_dotenv(override=False)
 
 
-def _read_credentials_file() -> str | None:
-    """Read the API key from `~/.config/ia-pptx/credentials.json` if present."""
+def _read_credentials_dict() -> dict[str, str]:
+    """Read the credentials JSON if present. Returns {} on any error."""
     if not CREDENTIALS_PATH.is_file():
-        return None
+        return {}
     try:
         data = json.loads(CREDENTIALS_PATH.read_text(encoding="utf-8"))
-        key = data.get("anthropic_api_key")
-        if isinstance(key, str) and key.strip():
-            return key.strip()
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if isinstance(v, str)}
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning("Could not read credentials file %s: %s", CREDENTIALS_PATH, exc)
-    return None
+    return {}
+
+
+def _read_credentials_file() -> str | None:
+    """Read the Anthropic API key from the credentials file (legacy helper)."""
+    data = _read_credentials_dict()
+    key = data.get("anthropic_api_key", "").strip()
+    return key or None
+
+
+def load_gemini_key() -> str | None:
+    """Resolve the Gemini / Nano Banana API key.
+
+    Resolution order:
+      1. `.env` → `GEMINI_API_KEY`
+      2. credentials file → `gemini_api_key`
+      3. process env → `GEMINI_API_KEY`
+    """
+    _try_load_dotenv()
+    env_key = os.environ.get(GEMINI_ENV_VAR, "").strip()
+    if env_key:
+        return env_key
+    file_key = _read_credentials_dict().get("gemini_api_key", "").strip()
+    return file_key or None
+
+
+def save_gemini_key(key: str) -> Path:
+    """Persist the Gemini key alongside the Anthropic one (mode 0600)."""
+    if not key or not key.strip():
+        raise ValueError("Gemini key is empty or whitespace-only")
+    return _write_creds({"gemini_api_key": key.strip()})
+
+
+def _write_creds(updates: dict[str, str]) -> Path:
+    """Merge `updates` into the credentials file and write back at mode 0600."""
+    CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(CREDENTIALS_DIR, stat.S_IRWXU)  # 0700
+    except OSError:
+        pass
+    existing = _read_credentials_dict()
+    existing.update({k: v.strip() for k, v in updates.items() if v and v.strip()})
+    existing.setdefault("source", "ia-pptx login")
+    CREDENTIALS_PATH.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+    try:
+        os.chmod(CREDENTIALS_PATH, stat.S_IRUSR | stat.S_IWUSR)  # 0600
+    except OSError:
+        pass
+    return CREDENTIALS_PATH
 
 
 def load_api_key() -> str | None:
@@ -82,29 +131,11 @@ def load_api_key() -> str | None:
 
 
 def save_api_key(key: str) -> Path:
-    """Persist the API key to `~/.config/ia-pptx/credentials.json` (mode 0600).
-
-    Creates the directory if needed. Returns the path written.
-    Raises `ValueError` for empty/whitespace keys.
-    """
+    """Persist the Anthropic API key (mode 0600). Preserves other keys
+    already in the credentials file (e.g. the Gemini key)."""
     if not key or not key.strip():
         raise ValueError("API key is empty or whitespace-only")
-    key = key.strip()
-
-    CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
-    # Tighten directory perms first.
-    try:
-        os.chmod(CREDENTIALS_DIR, stat.S_IRWXU)  # 0700
-    except OSError:
-        pass  # not all filesystems support chmod (e.g., Windows FAT) — best-effort
-
-    payload = {"anthropic_api_key": key, "source": "ia-pptx login"}
-    CREDENTIALS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    try:
-        os.chmod(CREDENTIALS_PATH, stat.S_IRUSR | stat.S_IWUSR)  # 0600
-    except OSError:
-        pass
-    return CREDENTIALS_PATH
+    return _write_creds({"anthropic_api_key": key.strip()})
 
 
 def clear_credentials() -> bool:
@@ -192,9 +223,13 @@ __all__ = [
     "CREDENTIALS_DIR",
     "CREDENTIALS_PATH",
     "ENV_VAR_NAME",
+    "GEMINI_ENV_VAR",
+    "GEMINI_KEYS_URL",
     "clear_credentials",
     "load_api_key",
+    "load_gemini_key",
     "login",
     "save_api_key",
+    "save_gemini_key",
     "status",
 ]
