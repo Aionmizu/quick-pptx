@@ -63,6 +63,23 @@ def _strip_code_fences(text: str) -> str:
     return text.strip()
 
 
+def _fonts_installed() -> bool:
+    """Quick check: does fontconfig know about our preset fonts?"""
+    fc_list = shutil.which("fc-list")
+    if not fc_list:
+        return True  # can't check; assume OK (don't spam)
+    try:
+        result = subprocess.run(
+            [fc_list, ":family"], capture_output=True, text=True, timeout=5, check=False
+        )
+        listing = result.stdout.lower()
+        # Probe two distinct preset fonts; if either is present, we assume the
+        # install ran. EB Garamond is in academic-archival; Space Grotesk in tech-startup.
+        return "eb garamond" in listing or "space grotesk" in listing
+    except Exception:
+        return True
+
+
 def _format_preset_block(preset: StylePreset) -> str:
     """Render the preset as a block injectable into the system prompt."""
     pal = preset.palette
@@ -255,6 +272,13 @@ def freeform_generate(
         f"Style preset: {preset.name} ({preset.heading_font} / {preset.body_font})"
         + (" + Naegle rules" if apply_naegle else "")
     )
+
+    if not _fonts_installed():
+        _emit(
+            "⚠️  Preset fonts not detected in fontconfig — LibreOffice will fall "
+            "back to generic substitutes. Run `python3 scripts/install_fonts.py` "
+            "once to install all preset fonts (~290 files via Google Fonts CDN)."
+        )
 
     output_path = output_path.resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
