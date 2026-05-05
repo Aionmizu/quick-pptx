@@ -1,0 +1,90 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "meta": {
+    "name": "ia-pptx-generator design tokens",
+    "anchor_style": "Minimalism & Swiss Style + Bento composition",
+    "accent_rationale": "Single warm accent (#C2410C burnt orange) used surgically for primary CTAs, active states, brand mark, link hover. Everything else neutral.",
+    "wcag_target": "WCAG 2.1 AA across project surfaces; AAA contrast for body text"
+  },
+  "color": {
+    "light": {
+      "background": "#FAFAF7",
+      "surface": "#FFFFFF",
+      "text": {
+        "primary": "#0F0F0F",
+        "secondary": "#6B6B68",
+        "muted": "#9A9A95"
+      },
+      "border": "#E5E5E2",
+      "accent": "#C2410C",
+      "accent_hover": "#9A330A",
+      "success": "#15803D",
+      "warning": "#A16207",
+      "error": "#B91C1C"
+    },
+    "dark": {
+      "background": "#0F0F0F",
+      "surface": "#1A1A1A",
+      "text": {
+        "primary": "#FAFAF7",
+        "secondary": "#A8A8A3",
+        "muted": "#6B6B68"
+      },
+      "border": "#2D2D2A",
+      "accent": "#EA580C",
+      "accent_hover": "#C2410C",
+      "success": "#22C55E",
+      "warning": "#CA8A04",
+      "error": "#DC2626"
+    }
+  },
+  "font": {
+    "sans": "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "mono": "'JetBrains Mono', 'Fira Code', ui-monospace, monospace"
+  },
+  "type_scale": {
+    "display_xl": { "size": "48px", "line": "56px", "weight": 700 },
+    "display_lg": { "size": "36px", "line": "44px", "weight": 700 },
+    "heading_1":  { "size": "24px", "line": "32px", "weight": 600 },
+    "heading_2":  { "size": "20px", "line": "28px", "weight": 600 },
+    "body_lg":    { "size": "18px", "line": "28px", "weight": 400 },
+    "body":       { "size": "16px", "line": "24px", "weight": 400 },
+    "body_sm":    { "size": "14px", "line": "20px", "weight": 400 },
+    "body_xs":    { "size": "12px", "line": "16px", "weight": 500 },
+    "code":       { "size": "14px", "line": "22px", "weight": 500 }
+  },
+  "spacing": {
+    "0":  "0",
+    "1":  "4px",
+    "2":  "8px",
+    "3":  "12px",
+    "4":  "16px",
+    "5":  "24px",
+    "6":  "32px",
+    "8":  "48px",
+    "10": "64px",
+    "12": "96px"
+  },
+  "radius": {
+    "none": "0px",
+    "sm":   "2px",
+    "md":   "4px",
+    "full": "9999px"
+  },
+  "shadow": {
+    "none":   "none",
+    "subtle": "0 1px 2px rgba(0, 0, 0, 0.05)",
+    "focus":  "0 0 0 3px rgba(194, 65, 12, 0.3)"
+  },
+  "layout": {
+    "container_max_width": "1120px",
+    "grid_columns": 12,
+    "grid_gutter": "24px"
+  },
+  "breakpoints": {
+    "mobile":  "0px",
+    "tablet":  "640px",
+    "desktop": "1024px",
+    "wide":    "1440px"
+  }
+}

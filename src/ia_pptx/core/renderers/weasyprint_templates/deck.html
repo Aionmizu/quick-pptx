@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="{{ html_lang }}">
+<head>
+  <meta charset="utf-8">
+  <title>{{ deck_title }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Playfair+Display:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+    @page {
+      size: 13.333in 7.5in;
+      margin: 0;
+    }
+
+    :root {
+      --bg: {{ palette.background }};
+      --fg: {{ palette.text }};
+      --muted: {{ palette.secondary }};
+      --primary: {{ palette.primary }};
+      --accent: {{ palette.accent }};
+      --heading-font: "{{ typography.heading_font }}", sans-serif;
+      --body-font: "{{ typography.body_font }}", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--body-font);
+      font-size: {{ body_pt }}pt;
+      line-height: 1.45;
+    }
+
+    .slide {
+      page-break-after: always;
+      position: relative;
+      width: 13.333in;
+      height: 7.5in;
+      padding: 0.7in 0.7in;
+      background: var(--bg);
+    }
+    .slide:last-child { page-break-after: auto; }
+
+    h1.title {
+      font-family: var(--heading-font);
+      font-size: {{ title_pt }}pt;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin: 0 0 0.3in;
+      line-height: 1.1;
+      color: var(--fg);
+    }
+    h2.subtitle {
+      font-family: var(--body-font);
+      font-size: {{ subtitle_pt }}pt;
+      font-weight: 400;
+      color: var(--muted);
+      margin: 0 0 0.4in;
+    }
+
+    .accent-rule {
+      width: 2.0in;
+      height: 4px;
+      background: var(--accent);
+      margin: 0.1in 0 0.3in;
+    }
+
+    ul.bullets {
+      list-style: none;
+      padding: 0; margin: 0;
+    }
+    ul.bullets li {
+      padding: 0.08in 0 0.08in 0.32in;
+      position: relative;
+      font-size: {{ body_pt }}pt;
+    }
+    ul.bullets li::before {
+      content: "•";
+      color: var(--accent);
+      position: absolute;
+      left: 0.04in;
+      font-weight: 700;
+    }
+
+    /* Layouts */
+
+    .layout-single-column .body {
+      max-width: 12in;
+    }
+
+    .layout-two-up .body {
+      column-count: 2;
+      column-gap: 0.5in;
+      max-width: 12in;
+    }
+
+    .layout-asymmetric {
+      display: grid;
+      grid-template-columns: 5.3in 1fr;
+      gap: 0.4in;
+      padding: 0;
+    }
+    .layout-asymmetric .panel {
+      background: var(--primary);
+      color: var(--bg);
+      padding: 0.8in 0.6in;
+    }
+    .layout-asymmetric .panel h1.title {
+      color: var(--bg);
+    }
+    .layout-asymmetric .body {
+      padding: 0.7in 0.7in 0.7in 0;
+    }
+
+    .layout-bento .grid {
+      display: grid;
+      grid-template-columns: 7in 1fr;
+      grid-template-rows: 1.6in 1.7in;
+      gap: 0.3in;
+      margin-top: 0.3in;
+    }
+    .layout-bento .tile {
+      padding: 0.3in;
+      color: var(--bg);
+    }
+    .layout-bento .tile.big {
+      grid-row: span 2;
+      background: var(--accent);
+      font-weight: 600;
+      font-size: {{ body_pt + 6 }}pt;
+    }
+    .layout-bento .tile.tr { background: var(--primary); }
+    .layout-bento .tile.br { background: var(--muted); }
+
+    /* Section divider */
+    .layout-divider {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 0;
+    }
+    .layout-divider .band {
+      width: 100%; height: 6px;
+      background: var(--accent);
+      margin: 0.6in 0 0.4in;
+    }
+    .layout-divider h1.title {
+      font-size: {{ title_pt + 16 }}pt;
+      padding: 0 0.7in;
+    }
+    .layout-divider .subtitle {
+      padding: 0 0.7in;
+      color: var(--muted);
+    }
+
+    .meta {
+      position: absolute;
+      bottom: 0.3in; right: 0.7in;
+      font-family: var(--body-font);
+      font-size: 9pt;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  {% for slide in slides %}
+    {% if slide.is_section_divider %}
+      <section class="slide layout-divider">
+        <div class="band"></div>
+        <h1 class="title">{{ slide.title }}</h1>
+        {% if slide.body %}
+          <div class="subtitle">{{ slide.body | join(' · ') }}</div>
+        {% endif %}
+      </section>
+    {% elif slide.layout_grid == 'asymmetric' %}
+      <section class="slide layout-asymmetric">
+        <div class="panel">
+          <h1 class="title">{{ slide.title }}</h1>
+        </div>
+        <div class="body">
+          <ul class="bullets">
+            {% for b in slide.body if b %}<li>{{ b }}</li>{% endfor %}
+          </ul>
+        </div>
+      </section>
+    {% elif slide.layout_grid == 'two-up' %}
+      <section class="slide layout-two-up">
+        <h1 class="title">{{ slide.title }}</h1>
+        <div class="accent-rule"></div>
+        <div class="body">
+          <ul class="bullets">
+            {% for b in slide.body if b %}<li>{{ b }}</li>{% endfor %}
+          </ul>
+        </div>
+      </section>
+    {% elif slide.layout_grid == 'bento' %}
+      <section class="slide layout-bento">
+        <h1 class="title">{{ slide.title }}</h1>
+        <div class="grid">
+          <div class="tile big">{{ slide.body[0] if slide.body|length > 0 else '' }}</div>
+          <div class="tile tr">{{ slide.body[1] if slide.body|length > 1 else '' }}</div>
+          <div class="tile br">{{ slide.body[2] if slide.body|length > 2 else '' }}</div>
+        </div>
+      </section>
+    {% else %}
+      <section class="slide layout-single-column">
+        <h1 class="title">{{ slide.title }}</h1>
+        <div class="accent-rule"></div>
+        <div class="body">
+          <ul class="bullets">
+            {% for b in slide.body if b %}<li>{{ b }}</li>{% endfor %}
+          </ul>
+        </div>
+      </section>
+    {% endif %}
+  {% endfor %}
+</body>
+</html>

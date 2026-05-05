@@ -1,0 +1,78 @@
+DESIGN RULES — APPLY TO EVERY DECK YOU GENERATE
+====================================================
+(Distilled from Naegle KM, "Ten simple rules for effective presentation slides,"
+PLOS Computational Biology 17(12), 2021. doi:10.1371/journal.pcbi.1009554)
+
+These rules are NOT optional flavor — they are the design contract for every
+deck this project produces. Apply them when choosing structure, drafting
+content, and shaping each slide.
+
+1. ONE IDEA PER SLIDE
+   Each slide carries exactly one central message. Break complex ideas across
+   multiple slides. If a slide tries to deliver two ideas, split it.
+
+2. ONE MINUTE PER SLIDE (≈ 30 seconds for very minimal density)
+   Slide content must be presentable in about a minute spoken. If the slide
+   needs more than that, it is too dense — split or reduce.
+
+3. THE HEADING IS THE MESSAGE
+   The slide title must state the conclusion of the slide, not the topic.
+   - WRONG: "Results"   →   RIGHT: "False-positive rates depend on sample size"
+   - WRONG: "Background" →  RIGHT: "SH2 domains bind phosphorylated tyrosines"
+   The title is the takeaway sentence; everything else on the slide supports it.
+
+4. ESSENTIAL POINTS ONLY
+   If a detail isn't going to be discussed or doesn't strengthen the title,
+   remove it. Audience eyes will wander to anything visible — every element
+   must earn its place.
+
+5. CREDIT, WHERE DUE
+   When sources, references, or contributor names are relevant, place them
+   consistently (typically a small line at the bottom of the slide).
+   Style: cite when the user provided sources; don't fabricate citations.
+
+6. USE GRAPHICS EFFECTIVELY (text-only slides are a smell)
+   Visual elements aid retention. When a slide is text-only, ask whether the
+   point could be sharpened by a layout choice (bento, asymmetric, color
+   block) that gives the eye something to anchor on. Don't generate fake
+   data viz, but DO use the layout grid choices to break up the visual rhythm.
+
+7. AVOID COGNITIVE OVERLOAD — keep total elements ≤ 6 per slide
+   - No full sentences in the body. Use short fragments / guideposts.
+   - Use sans-serif fonts (already enforced by tokens). Avoid italics, all-caps,
+     and underline; prefer bold for emphasis.
+   - High contrast text/background (already enforced by palettes).
+   - Color is never the sole signal.
+
+8. THE DISTRACTED-PERSON TEST
+   If someone glanced at the slide for two seconds without hearing what was
+   said, would they grasp the main point? If not, the slide fails this test.
+   - Confirm by inspecting: title states the conclusion; body supports it;
+     no shiny baubles distracting from the message.
+
+9. ITERATE THROUGH PRACTICE (this rule applies to the human user)
+   The deck this project generates is a starting point. Encourage the user
+   in the output messaging to read through, edit, and rehearse — design
+   improves through cycles. (You don't enforce this rule yourself; it's a
+   reminder for the user-facing copy in error messages and output handoff.)
+
+10. MITIGATE TECHNICAL DISASTERS
+    Avoid animations, fly-ins, and movement effects in generated decks.
+    Surveys consistently show audiences dislike them, and they create
+    accessibility issues + cross-tool compatibility problems. Stick to
+    static slides with strong typography and layout.
+
+OPERATIONAL TRANSLATION
+=======================
+When you choose structure: density "minimal" → 1–3 elements per slide;
+"medium" → 3–5; "dense" → ≤ 6. Never exceed 6.
+
+When you draft titles: write the conclusion sentence (Rule 3). Use complete
+declarative phrases, not topic labels.
+
+When you draft body bullets: short fragments, not sentences (Rule 7). Each
+bullet supports the title.
+
+When you choose layout grid: vary it across slides for visual rhythm
+(Rule 6) but commit to one structural pattern per generation
+(per the structural-commitment step).

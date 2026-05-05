@@ -1,0 +1,63 @@
+# generated: 2026-05-05
+# last_updated: 2026-05-05
+# project: IA-pptx-generator
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: documentations/implementation-artifacts
+
+# All v1 stories implemented in autonomous loop on 2026-05-05.
+# - Test suite: 36 passing
+# - Lint + format + mypy: clean
+# - Skill bundle built: dist/ia-pptx-skill.zip (200 KB)
+# - Spike validated: native python-pptx path holds (see docs/spike-notes.md)
+# - GitHub Pages gallery (Story 2.5) was descoped per maintainer decision.
+# - Final naming (Story 2.10): rename script ready; awaiting Florian's name pick.
+
+generated: 2026-05-05
+last_updated: 2026-05-05
+project: IA-pptx-generator
+project_key: NOKEY
+tracking_system: file-system
+story_location: documentations/implementation-artifacts
+
+development_status:
+  # ===== Epic 1: Generate distinctive PowerPoint decks through a Claude skill =====
+  epic-1: done
+  1-1-bootstrap-project-repository: done
+  1-2-vendor-ui-ux-pro-max-upstream: done
+  1-3-validate-wedge-via-spike: done
+  1-4-implement-design-library: done
+  1-5-implement-shapes-and-renderer: done
+  1-6-implement-design-choices: done
+  1-7-implement-content-drafter: done
+  1-8-implement-orchestrator-and-metadata: done
+  1-9-implement-falsification-harness: done
+  1-10-build-claude-skill-bundle: done
+  epic-1-retrospective: optional
+
+  # ===== Epic 2: Public launch surface — README, gallery, accessibility, release =====
+  epic-2: done
+  2-1-define-design-tokens: done
+  2-2-compose-readme: done
+  2-3-produce-architecture-diagram: done
+  2-4-render-hero-gallery-png: done
+  2-5-build-github-pages-gallery: descoped       # cut by maintainer; README hero suffices for v1
+  2-6-write-contributing-md: done
+  2-7-generate-third-party-licenses: done
+  2-8-implement-release-pipeline: done
+  2-9-audit-and-fix-accessibility: done
+  2-10-finalize-project-naming: deferred         # rename script ready; awaiting final name pick
+  epic-2-retrospective: optional
+
+  # ===== Epic 3: Streamlit power-user surface =====
+  epic-3: done
+  3-1-build-streamlit-app-skeleton: done
+  3-2-apply-streamlit-theming: done
+  3-3-build-style-hint-chips: done
+  3-4-add-deck-length-slider-and-advanced-controls: done
+  3-5-implement-in-flight-progress-narration: done
+  3-6-show-download-cta-and-preview-thumbnails: done
+  3-7-implement-error-and-warning-banners: done
+  3-8-apply-streamlit-accessibility: done
+  3-9-document-streamlit-setup-walkthrough: done
+  epic-3-retrospective: optional

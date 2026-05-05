@@ -1,0 +1,132 @@
+# ─────────────────────────────────────────────────────────────────────
+# Secrets — NEVER commit
+# ─────────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.env
+.secrets/
+secrets.toml
+.streamlit/secrets.toml
+credentials.json
+*.pem
+*.key
+id_rsa*
+id_dsa*
+.aws/
+.gnupg/
+.netrc
+
+# ─────────────────────────────────────────────────────────────────────
+# Python
+# ─────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.pyenv-version
+
+# Type / lint / test caches
+.mypy_cache/
+.dmypy.json
+.pyre/
+.ruff_cache/
+.pytest_cache/
+.tox/
+.nox/
+.hypothesis/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.cache
+
+# uv / poetry / pdm caches and lockfile-adjacent
+.uv-cache/
+__pypackages__/
+.pdm.toml
+poetry.toml
+
+# ─────────────────────────────────────────────────────────────────────
+# Editors / IDE
+# ─────────────────────────────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─────────────────────────────────────────────────────────────────────
+# Project-specific generated outputs
+# ─────────────────────────────────────────────────────────────────────
+out/
+*.pptx
+!tests/**/*.pptx
+*.png
+!docs/**/*.png
+!docs/assets/*.png
+
+# Skill bundle build output
+dist/
+*.zip
+!.github/**/*.zip
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/config.local.toml
+
+# Docs build (if MkDocs / Sphinx ever added)
+site/
+_site/
+.docusaurus/
+
+# Node / web tooling (if ever added)
+node_modules/
+.npm/
+.pnp.*
+.yarn/
+.parcel-cache/
+
+# Logs
+*.log
+logs/
+.streamlit/.log
+
+# Runtime junk
+*.pid
+*.seed
+*.pid.lock

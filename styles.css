@@ -1,0 +1,197 @@
+/* ia-pptx-generator design tokens — derived from design-tokens.json
+   Anchor: Minimalism & Swiss Style + bento composition + burnt orange accent.
+   Used by: README rendering (where supported), GitHub Pages gallery,
+   Streamlit theming. Single source of truth for project-UI styling.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+
+:root {
+  /* Color — light mode (default) */
+  --bg: #FAFAF7;
+  --surface: #FFFFFF;
+  --text-primary: #0F0F0F;
+  --text-secondary: #6B6B68;
+  --text-muted: #9A9A95;
+  --border: #E5E5E2;
+  --accent: #C2410C;
+  --accent-hover: #9A330A;
+  --success: #15803D;
+  --warning: #A16207;
+  --error: #B91C1C;
+
+  /* Type */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+
+  /* Type scale */
+  --display-xl-size: 48px;  --display-xl-line: 56px;  --display-xl-weight: 700;
+  --display-lg-size: 36px;  --display-lg-line: 44px;  --display-lg-weight: 700;
+  --heading-1-size: 24px;   --heading-1-line: 32px;   --heading-1-weight: 600;
+  --heading-2-size: 20px;   --heading-2-line: 28px;   --heading-2-weight: 600;
+  --body-lg-size: 18px;     --body-lg-line: 28px;     --body-lg-weight: 400;
+  --body-size: 16px;        --body-line: 24px;        --body-weight: 400;
+  --body-sm-size: 14px;     --body-sm-line: 20px;     --body-sm-weight: 400;
+  --body-xs-size: 12px;     --body-xs-line: 16px;     --body-xs-weight: 500;
+  --code-size: 14px;        --code-line: 22px;        --code-weight: 500;
+
+  /* Spacing (8px base) */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
+  --space-12: 96px;
+
+  /* Radius */
+  --radius-none: 0px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-full: 9999px;
+
+  /* Shadow */
+  --shadow-none: none;
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(194, 65, 12, 0.3);
+
+  /* Layout */
+  --container-max: 1120px;
+  --grid-gutter: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F0F0F;
+    --surface: #1A1A1A;
+    --text-primary: #FAFAF7;
+    --text-secondary: #A8A8A3;
+    --text-muted: #6B6B68;
+    --border: #2D2D2A;
+    --accent: #EA580C;
+    --accent-hover: #C2410C;
+    --success: #22C55E;
+    --warning: #CA8A04;
+    --error: #DC2626;
+  }
+}
+
+/* Base */
+
+html {
+  font-family: var(--font-sans);
+  font-size: var(--body-size);
+  line-height: var(--body-line);
+  color: var(--text-primary);
+  background-color: var(--bg);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Higher-contrast mode */
+@media (prefers-contrast: more) {
+  :root {
+    --border: #000000;
+    --shadow-subtle: none;
+  }
+}
+
+/* Container */
+.container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding-left: var(--space-5);
+  padding-right: var(--space-5);
+}
+
+/* Headings */
+h1 { font-size: var(--display-lg-size); line-height: var(--display-lg-line); font-weight: var(--display-lg-weight); margin: var(--space-6) 0 var(--space-4); }
+h2 { font-size: var(--heading-1-size); line-height: var(--heading-1-line); font-weight: var(--heading-1-weight); margin: var(--space-5) 0 var(--space-3); }
+h3 { font-size: var(--heading-2-size); line-height: var(--heading-2-line); font-weight: var(--heading-2-weight); margin: var(--space-4) 0 var(--space-2); }
+
+p { margin: 0 0 var(--space-4); }
+
+/* Links */
+a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; }
+a:hover { color: var(--accent); }
+
+/* Code */
+code, pre {
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+}
+pre {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  overflow-x: auto;
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: var(--body-size);
+  font-weight: 500;
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+.btn:hover { background-color: var(--bg); }
+.btn-primary {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
+}
+.btn-primary:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); }
+
+/* Focus ring everywhere — keyboard only via :focus-visible */
+*:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Bento grid utility */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--grid-gutter);
+}
+.bento-cell {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  overflow: hidden;
+}
+.bento-cell-tall  { grid-row: span 2; }
+.bento-cell-wide  { grid-column: span 2; }
+.bento-cell-large { grid-column: span 2; grid-row: span 2; }
+
+/* Status colors */
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-error   { color: var(--error); }

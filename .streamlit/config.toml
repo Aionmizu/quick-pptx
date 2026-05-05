@@ -1,0 +1,16 @@
+[theme]
+# Aligned with design-tokens.json (light mode). Burnt orange accent.
+primaryColor = "#C2410C"
+backgroundColor = "#FAFAF7"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0F0F0F"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false  # NFR9: no telemetry
+
+[server]
+headless = true

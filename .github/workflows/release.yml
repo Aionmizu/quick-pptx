@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write   # required to create the GitHub Release
+
+jobs:
+  release:
+    name: Build skill bundle and publish GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dev + main dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,streamlit]"
+
+      - name: Verify THIRD_PARTY_LICENSES.md is current
+        run: |
+          python3 scripts/generate_third_party_licenses.py
+          git diff --exit-code THIRD_PARTY_LICENSES.md || (
+            echo "::error::THIRD_PARTY_LICENSES.md is out of date. Run scripts/generate_third_party_licenses.py and commit."
+            exit 1
+          )
+
+      - name: Lint and format check
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Type check
+        run: mypy src/ia_pptx
+
+      - name: Run unit + non-integration tests
+        run: pytest -m "not integration"
+
+      - name: Build skill bundle
+        run: python3 scripts/build_skill_bundle.py
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compose release notes
+        id: notes
+        run: |
+          {
+            echo "notes<<RELEASE_NOTES_EOF"
+            echo "## ia-pptx-generator ${GITHUB_REF_NAME}"
+            echo
+            echo "Pinned \`ui-ux-pro-max\` version:"
+            echo
+            echo '```'
+            cat vendor/ui-ux-pro-max/UPSTREAM_VERSION || echo "(missing UPSTREAM_VERSION)"
+            echo '```'
+            echo
+            if [ -f CHANGELOG.md ]; then
+              echo "### Changelog"
+              echo
+              awk '/^## / { if (found) exit; found=1; next } found' CHANGELOG.md
+            fi
+            echo
+            echo "### Install"
+            echo
+            echo "- Claude Code: clone the repo and point Claude Code at \`skills/ia-pptx/\`."
+            echo "- claude.ai: download \`ia-pptx-skill.zip\` below and upload via the Skills UI."
+            echo "- Streamlit: \`pip install -e \".[streamlit]\"\` then \`streamlit run app.py\` with \`ANTHROPIC_API_KEY\` set."
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ia-pptx-generator ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.notes }}
+          files: dist/ia-pptx-skill.zip
+          draft: false
+          prerelease: false

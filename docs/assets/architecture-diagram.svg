@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" width="800" height="320" role="img" aria-labelledby="diagram-title diagram-desc">
+  <title id="diagram-title">ia-pptx-generator data flow</title>
+  <desc id="diagram-desc">
+    User prompt flows to Claude (in Claude Code or claude.ai or via Anthropic API from Streamlit).
+    Claude reads from the vendored ui-ux-pro-max design library and produces structural choices and slide content.
+    The orchestrator passes those to the python-pptx renderer, which writes a .pptx file to the user's local machine.
+    No data leaves the user's machine except the prompt to Anthropic. No telemetry, no third-party servers.
+  </desc>
+
+  <!-- Tokens -->
+  <defs>
+    <style>
+      .bg { fill: #FAFAF7; }
+      .surface { fill: #FFFFFF; stroke: #E5E5E2; stroke-width: 1.5; }
+      .accent { fill: #C2410C; }
+      .accent-stroke { stroke: #C2410C; }
+      .text { font-family: Inter, system-ui, sans-serif; fill: #0F0F0F; font-size: 14px; }
+      .label { font-family: Inter, system-ui, sans-serif; fill: #6B6B68; font-size: 12px; }
+      .title { font-weight: 600; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0F0F0F"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="800" height="320"/>
+
+  <!-- 1. User -->
+  <rect class="surface" x="20" y="120" width="120" height="80" rx="2" ry="2"/>
+  <text class="text title" x="80" y="155" text-anchor="middle">User</text>
+  <text class="label" x="80" y="178" text-anchor="middle">prompt + hints</text>
+
+  <!-- 2. Claude (skill or Streamlit) -->
+  <rect class="surface" x="180" y="120" width="160" height="80" rx="2" ry="2"/>
+  <text class="text title" x="260" y="151" text-anchor="middle">Claude</text>
+  <text class="label" x="260" y="172" text-anchor="middle">Claude Code</text>
+  <text class="label" x="260" y="188" text-anchor="middle">claude.ai · Streamlit (BYO key)</text>
+
+  <!-- 3. Vendored ui-ux-pro-max -->
+  <rect class="surface" x="380" y="40" width="180" height="80" rx="2" ry="2"/>
+  <text class="text title" x="470" y="71" text-anchor="middle">ui-ux-pro-max</text>
+  <text class="label" x="470" y="91" text-anchor="middle">vendored design library</text>
+  <text class="label" x="470" y="108" text-anchor="middle">styles · palettes · typography</text>
+
+  <!-- 4. ia_pptx.core -->
+  <rect class="surface" x="380" y="200" width="180" height="80" rx="2" ry="2"/>
+  <text class="text title" x="470" y="231" text-anchor="middle">ia_pptx.core</text>
+  <text class="label" x="470" y="252" text-anchor="middle">orchestrator · choices ·</text>
+  <text class="label" x="470" y="268" text-anchor="middle">drafter · renderer (python-pptx)</text>
+
+  <!-- 5. .pptx file (local) -->
+  <rect x="600" y="120" width="180" height="80" rx="2" ry="2" fill="#FFFFFF" stroke="#C2410C" stroke-width="2"/>
+  <text class="text title" x="690" y="151" text-anchor="middle">.pptx file</text>
+  <text class="label" x="690" y="172" text-anchor="middle">native, editable</text>
+  <text class="label" x="690" y="188" text-anchor="middle">local filesystem only</text>
+
+  <!-- Arrows -->
+  <line x1="140" y1="160" x2="180" y2="160" stroke="#0F0F0F" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="260" y1="120" x2="380" y2="80" stroke="#0F0F0F" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="380" y1="80" x2="260" y2="120" stroke="#0F0F0F" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
+  <line x1="260" y1="200" x2="380" y2="240" stroke="#0F0F0F" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="560" y1="240" x2="690" y2="200" stroke="#0F0F0F" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Boundary annotation -->
+  <text class="label" x="400" y="312" text-anchor="middle" font-style="italic">No telemetry · no third-party servers · no analytics. Prompt → Anthropic only; deck stays local.</text>
+</svg>

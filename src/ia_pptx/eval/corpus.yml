@@ -1,0 +1,56 @@
+# Canonical 10-prompt corpus for falsification check (Story 1.9 / FR11).
+#
+# Spans persona variety per FR33: student exposé, professional pitch,
+# research summary, project update, conference talk + 5 more variations
+# covering different topical domains and language.
+
+prompts:
+  - id: student-exposé-french-revolution
+    persona: student
+    text: "An exposé about the French Revolution for a high-school history class, ~12 slides."
+    expected_density: medium
+
+  - id: professional-pitch-saas
+    persona: professional
+    text: "A 15-minute pitch deck for a B2B SaaS product launching in Q3, audience is procurement leaders."
+    expected_density: medium
+
+  - id: research-summary-ml
+    persona: researcher
+    text: "A 10-slide summary of a recent paper on retrieval-augmented generation for a journal club."
+    expected_density: dense
+
+  - id: project-update-team
+    persona: pm
+    text: "A 6-slide project status update for a quarterly leadership review — no fluff."
+    expected_density: minimal
+
+  - id: conference-talk-design
+    persona: speaker
+    text: "A 20-minute conference talk on humane software design, audience is design-leaning engineers."
+    expected_density: medium
+
+  - id: student-exposé-biology
+    persona: student
+    text: "A school exposé on photosynthesis for 9th-grade biology students, 8 slides."
+    expected_density: minimal
+
+  - id: étudiante-révolution-fr
+    persona: student
+    text: "Un exposé sur la Révolution française pour une classe de seconde, 12 diapos."
+    expected_density: medium
+
+  - id: hackathon-pitch
+    persona: professional
+    text: "A 5-slide hackathon pitch for a tool that converts spreadsheets into APIs."
+    expected_density: minimal
+
+  - id: nonprofit-grant-update
+    persona: pm
+    text: "A grant-update deck for a small literacy nonprofit, 10 slides, audience is the board."
+    expected_density: medium
+
+  - id: keynote-future-of-work
+    persona: speaker
+    text: "A 25-minute keynote on the future of remote work and asynchronous collaboration."
+    expected_density: medium

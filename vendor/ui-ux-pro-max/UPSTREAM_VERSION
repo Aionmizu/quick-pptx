@@ -1,0 +1,8 @@
+upstream: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+version: vendored-2026-05-05
+license: MIT
+notes: |
+  This vendored copy was sourced from the locally-installed Claude Code skill
+  copy of `ui-ux-pro-max`. The upstream repository is the canonical source.
+  Bumps to this vendored version go through the falsification-check release gate
+  (see ia_pptx/eval/falsification.py).
