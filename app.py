@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import logging
 import sys
+import threading
+import time
 from pathlib import Path
 
 # Make src/ importable when run from repo root
@@ -22,11 +24,17 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 import streamlit as st
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 
 from ia_pptx import __version__
 from ia_pptx.auth import load_api_key
 from ia_pptx.core import freeform_generate, freeform_pdf_generate
 from ia_pptx.design import PRESETS
+
+
+class _Cancelled(RuntimeError):
+    """Raised by the worker thread when the user clicks Cancel."""
+
 
 logger = logging.getLogger("ia_pptx.streamlit")
 
@@ -190,7 +198,69 @@ with st.expander("LLM backend", expanded=False):
     llm_pref = LLM_PREFS[llm_label]
 
 
-# ── Generate ────────────────────────────────────────────────────────────────
+# ── Generate / Cancel — runs in a background thread so Cancel can interrupt ─
+
+# Worker state lives in session_state. The thread updates these fields; the
+# main script re-reads them on each rerun and renders accordingly.
+ss = st.session_state
+ss.setdefault("worker_running", False)
+ss.setdefault("worker_events", [])  # type: ignore[arg-type]
+ss.setdefault("worker_result", None)
+ss.setdefault("worker_error", None)
+ss.setdefault("worker_cancelled", False)
+ss.setdefault("cancel_event", None)
+
+
+def _start_worker(*, kind: str) -> None:
+    """Spawn the generation in a daemon thread and return immediately."""
+    out_dir = _REPO_ROOT / "out" / ("freeform" if kind == "pptx" else "freeform-pdf")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_name = f"deck_{kind}.pptx" if kind == "pptx" else "deck_pdf.pdf"
+    output_path = out_dir / out_name
+
+    cancel_event = threading.Event()
+    ss.cancel_event = cancel_event
+    ss.worker_events = []
+    ss.worker_result = None
+    ss.worker_error = None
+    ss.worker_cancelled = False
+    ss.worker_running = True
+
+    snapshot = {
+        "prompt": prompt,
+        "output_path": output_path,
+        "llm_pref": llm_pref,
+        "length_hint": int(length_hint),
+        "max_iterations": int(max_iterations),
+        "style": selected_style,
+        "apply_naegle": apply_naegle,
+    }
+
+    def _progress(msg: str) -> None:
+        if cancel_event.is_set():
+            raise _Cancelled("user cancelled")
+        ss.worker_events.append(msg)
+
+    def _run() -> None:
+        try:
+            if kind == "pptx":
+                result = freeform_generate(progress=_progress, **snapshot)
+            else:
+                result = freeform_pdf_generate(progress=_progress, **snapshot)
+            ss.worker_result = result
+        except _Cancelled:
+            ss.worker_cancelled = True
+        except Exception as exc:
+            ss.worker_error = exc
+        finally:
+            ss.worker_running = False
+
+    thread = threading.Thread(target=_run, daemon=True)
+    add_script_run_ctx(thread)
+    thread.start()
+
+
+# ── Generate-button row + Cancel button (shown only while running) ──────────
 
 input_is_blank = not prompt or not prompt.strip()
 reasons: list[str] = []
@@ -199,90 +269,77 @@ if not API_KEY and llm_pref == "api":
 if input_is_blank:
     reasons.append("enter a prompt")
 
-button_label = (
-    "Generate — " + " and ".join(reasons) + " to enable"
-    if reasons
-    else f"Generate {output_kind.upper()}"
-)
-generate_disabled = bool(reasons)
+if ss.worker_running:
+    col_a, col_b = st.columns([3, 1])
+    with col_a:
+        st.button(
+            "Generating… (iteration in progress)",
+            type="primary",
+            disabled=True,
+            use_container_width=True,
+        )
+    with col_b:
+        if st.button("✕ Cancel", type="secondary", use_container_width=True):
+            if ss.cancel_event is not None:
+                ss.cancel_event.set()
+            ss.worker_events.append("Cancel requested — finishing current step…")
+else:
+    button_label = (
+        "Generate — " + " and ".join(reasons) + " to enable"
+        if reasons
+        else f"Generate {output_kind.upper()}"
+    )
+    if st.button(
+        button_label,
+        type="primary",
+        disabled=bool(reasons),
+        use_container_width=True,
+    ):
+        _start_worker(kind=output_kind)
+        st.rerun()
 
-generate_clicked = st.button(
-    button_label,
-    type="primary",
-    disabled=generate_disabled,
-    use_container_width=True,
-)
 
-if generate_clicked:
-    out_dir = _REPO_ROOT / "out" / ("freeform" if output_kind == "pptx" else "freeform-pdf")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_name = f"deck_{output_kind}.pptx" if output_kind == "pptx" else "deck_pdf.pdf"
-    output_path = out_dir / out_name
+# ── Live event log + result panel ──────────────────────────────────────────
 
-    with st.status("Starting…", expanded=True) as status:
-        # Live event log: every phase emit gets surfaced as both the status
-        # label (current step) and a writeable log inside the expander
-        # (history). The user always sees what the pipeline is doing.
-        status_log = st.empty()
-        events: list[str] = []
+if ss.worker_running or ss.worker_events:
+    with st.status(
+        "Running…" if ss.worker_running else "Done.",
+        expanded=True,
+        state="running" if ss.worker_running else "complete",
+    ) as status:
+        events = list(ss.worker_events)
+        if events:
+            status.update(label=events[-1])
+            st.markdown("\n".join(f"- {e}" for e in events[-30:]))
 
-        def _on_progress(msg: str) -> None:
-            events.append(msg)
-            status.update(label=msg)
-            status_log.markdown(
-                "\n".join(f"- {e}" for e in events[-30:])  # cap history
-            )
+if ss.worker_cancelled:
+    st.warning("Generation cancelled. Partial files may exist on disk.")
 
-        try:
-            if output_kind == "pptx":
-                _on_progress("Starting pptxgenjs pipeline…")
-                result = freeform_generate(
-                    prompt=prompt,
-                    output_path=output_path,
-                    llm_pref=llm_pref,
-                    length_hint=int(length_hint),
-                    max_iterations=int(max_iterations),
-                    progress=_on_progress,
-                    style=selected_style,
-                    apply_naegle=apply_naegle,
+if ss.worker_error:
+    st.error(f"Generation failed: {ss.worker_error}")
+
+if ss.worker_result is not None:
+    result = ss.worker_result
+    last_bugs = result.bug_history[-1] if result.bug_history else []
+    final_path = result.pdf_path if hasattr(result, "pdf_path") else result.pptx_path
+    ss.last_output_path = str(final_path)
+    ss.last_jpgs = [str(p) for p in result.jpg_paths]
+    st.success(f"Done in {result.iterations} iteration(s) · {len(last_bugs)} bug(s) remaining")
+    if last_bugs:
+        with st.expander(f"⚠️  {len(last_bugs)} unfixed bug(s) — visual QA flagged"):
+            for bug in last_bugs:
+                st.write(
+                    f"**Slide {bug.get('slide_index', '?')}** "
+                    f"[{bug.get('type', '?')}] — {bug.get('description', '')}"
                 )
-                final_path = result.pptx_path
-                jpgs = result.jpg_paths
-                iterations = result.iterations
-                last_bugs = result.bug_history[-1] if result.bug_history else []
-            else:
-                _on_progress("Starting WeasyPrint pipeline…")
-                pdf_result = freeform_pdf_generate(
-                    prompt=prompt,
-                    output_path=output_path,
-                    llm_pref=llm_pref,
-                    length_hint=int(length_hint),
-                    max_iterations=int(max_iterations),
-                    progress=_on_progress,
-                    style=selected_style,
-                    apply_naegle=apply_naegle,
-                )
-                final_path = pdf_result.pdf_path
-                jpgs = pdf_result.jpg_paths
-                iterations = pdf_result.iterations
-                last_bugs = pdf_result.bug_history[-1] if pdf_result.bug_history else []
+    # Single-shot consumption — clear so refreshing doesn't re-render Done.
+    ss.worker_result = None
 
-            status.update(
-                label=f"Done in {iterations} iteration(s) · {len(last_bugs)} bug(s) remaining",
-                state="complete",
-            )
-            st.session_state.last_output_path = str(final_path)
-            st.session_state.last_jpgs = [str(p) for p in jpgs]
-            if last_bugs:
-                with st.expander(f"⚠️  {len(last_bugs)} unfixed bug(s) — visual QA flagged"):
-                    for bug in last_bugs:
-                        st.write(
-                            f"**Slide {bug.get('slide_index', '?')}** "
-                            f"[{bug.get('type', '?')}] — {bug.get('description', '')}"
-                        )
-        except Exception as exc:
-            status.update(label="Generation failed", state="error")
-            st.error(f"{exc}")
+# Auto-rerun while the worker is alive so the event log updates and the
+# Cancel button stays clickable.
+if ss.worker_running:
+    time.sleep(0.5)
+    st.rerun()
 
 
 # ── Result preview + download ──────────────────────────────────────────────

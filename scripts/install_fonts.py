@@ -34,7 +34,12 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
 from ia_pptx.design import PRESETS  # noqa: E402
 
 FONT_DIR = Path.home() / ".local" / "share" / "fonts" / "quick-pptx"
-USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/130.0"
+# Force TTF (not WOFF2) — LibreOffice's fontconfig reads TTF/OTF reliably
+# but WOFF2 support is patchy across distros. An old Firefox UA tells
+# Google Fonts to serve TTF instead of WOFF2.
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux i686; rv:1.9.0.10) Gecko/2009042315 Ubuntu/8.04 Firefox/3.0.10"
+)
 
 
 def _all_fonts() -> set[str]:
