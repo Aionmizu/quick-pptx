@@ -378,18 +378,18 @@ with lang_col:
 
 with renderer_col:
     RENDERER_OPTIONS = {
-        "Editable .pptx — python-pptx (simplest)": "pptx-native",
-        "Editable .pptx — pptxgenjs (richer design)": "pptxgenjs",
+        "Editable .pptx — pptxgenjs (recommended)": "pptxgenjs",
+        "Editable .pptx — python-pptx (no Node required)": "pptx-native",
         "PDF — WeasyPrint (highest design fidelity)": "weasyprint-html",
     }
     renderer_label = st.selectbox(
         label="Renderer",
         options=list(RENDERER_OPTIONS.keys()),
-        index=1,  # pptxgenjs default: editable + best design
+        index=0,  # pptxgenjs default: editable + best design
         help=(
-            "python-pptx: simplest path, native shapes, modest visual ceiling. "
             "pptxgenjs (recommended): Node.js bridge, richer text/shape primitives, "
             "ui-ux-pro-max design vocabulary surfaces best here, .pptx stays editable. "
+            "python-pptx: pure-Python fallback, simpler but lower visual ceiling. "
             "WeasyPrint: HTML+CSS, highest design fidelity, .pdf only (not editable)."
         ),
     )

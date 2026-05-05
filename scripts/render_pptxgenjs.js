@@ -313,11 +313,16 @@ async function renderBento(slide, planSlide, palette, typography, sizes) {
   applyBackground(slide, palette);
   await _addSlideIcon(slide, planSlide, palette);
 
+  const titleColor = pickReadable(palette.text, palette.background);
+  const onAccent = pickReadable(palette.background, palette.accent);
+  const onPrimary = pickReadable(palette.background, palette.primary);
+  const onSecondary = pickReadable(palette.background, palette.secondary);
+
   // Title at top
   slide.addText(planSlide.title, {
     x: M, y: 0.3, w: W - 2 * M, h: 0.9,
     fontSize: sizes.titlePt - 8, fontFace: typography.heading_font, bold: true,
-    color: stripHash(palette.text), align: "left", valign: "top", margin: 0,
+    color: titleColor, align: "left", valign: "top", margin: 0,
   });
 
   // Bento composition: big tile (left) + 2 stacked tiles (right) + bottom strip
@@ -337,7 +342,7 @@ async function renderBento(slide, planSlide, palette, typography, sizes) {
     slide.addText(bullets[0], {
       x: M + 0.3, y: topY + 0.3, w: 6.2, h: rowH - 0.6,
       fontSize: sizes.bodyPt + 6, fontFace: typography.body_font, bold: true,
-      color: stripHash(palette.background), align: "left", valign: "top", margin: 0,
+      color: onAccent, align: "left", valign: "top", margin: 0,
     });
   }
 
@@ -353,7 +358,7 @@ async function renderBento(slide, planSlide, palette, typography, sizes) {
     slide.addText(bullets[1], {
       x: rightX + 0.25, y: topY + 0.25, w: rightW - 0.5, h: 1.45,
       fontSize: sizes.bodyPt, fontFace: typography.body_font,
-      color: stripHash(palette.background), align: "left", valign: "top", margin: 0,
+      color: onPrimary, align: "left", valign: "top", margin: 0,
     });
   }
 
@@ -367,20 +372,20 @@ async function renderBento(slide, planSlide, palette, typography, sizes) {
     slide.addText(bullets[2], {
       x: rightX + 0.25, y: topY + 2.25, w: rightW - 0.5, h: 1.7,
       fontSize: sizes.bodyPt, fontFace: typography.body_font,
-      color: stripHash(palette.background), align: "left", valign: "top", margin: 0,
+      color: onSecondary, align: "left", valign: "top", margin: 0,
     });
   }
 
   // Optional bottom strip if there are extra bullets
   if (bullets.length > 3 && bullets.slice(3).some(Boolean)) {
     const extras = bullets.slice(3).filter(Boolean);
-    const items = extras.map((b, i) => ({
-      text: b, options: { bullet: true, breakLine: i < extras.length - 1 },
+    const items = extras.map((b) => ({
+      text: b, options: { bullet: true, breakLine: true },
     }));
     slide.addText(items, {
       x: M, y: topY + rowH + 0.3, w: W - 2 * M, h: H - topY - rowH - 0.6,
       fontSize: sizes.bodyPt, fontFace: typography.body_font,
-      color: stripHash(palette.text), align: "left", valign: "top",
+      color: titleColor, align: "left", valign: "top",
       paraSpaceAfter: 6,
     });
   }

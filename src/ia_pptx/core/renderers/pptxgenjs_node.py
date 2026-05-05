@@ -143,6 +143,20 @@ class PptxgenjsRenderer:
                 f"pptxgenjs script claimed success but {output_path} doesn't exist. "
                 f"stdout: {result.stdout.strip()[:200]}; stderr: {result.stderr.strip()[:200]}"
             )
+
+        # Post-process: embed structural metadata into the .pptx core
+        # properties so the falsification harness can read it back.
+        # pptxgenjs doesn't expose custom OOXML properties, so we round-trip
+        # through python-pptx to add them.
+        if structural_metadata:
+            from pptx import Presentation as _Presentation
+
+            from ia_pptx.core.shapes import write_metadata
+
+            prs = _Presentation(str(output_path))
+            write_metadata(prs, structural_metadata)
+            prs.save(str(output_path))
+
         return output_path.resolve()
 
 
