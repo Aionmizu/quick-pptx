@@ -130,16 +130,6 @@ with col_format:
     )
     output_kind = OUTPUT_FORMATS[output_choice]
 
-with col_length:
-    length_hint = st.number_input(
-        "Slides",
-        min_value=4,
-        max_value=20,
-        value=10,
-        step=1,
-        help="Target slide count. Claude may pad/trim by 1–2 slides.",
-    )
-
 with col_iters:
     max_iterations = st.number_input(
         "QA passes",
@@ -150,39 +140,76 @@ with col_iters:
         help="Max revise loops. The visual QA loop renders slides, spots bugs, asks Claude to fix.",
     )
 
-# ── Style preset + Naegle toggle ────────────────────────────────────────────
+# Naegle goes BEFORE the slide-count input so we can force "Auto" when on.
+apply_naegle = st.checkbox(
+    "Apply Naegle 10 rules of academic slide design",
+    value=False,
+    help=(
+        "Off by default. When enabled, the system prompt includes Naegle 2021's "
+        "ten rules — one idea per slide, ≤6 informational elements, title = "
+        "conclusion, no animations, etc. Recommended for research / academic / "
+        "educational decks. **Naegle Rule 2 (one minute per slide) means the slide "
+        "count is best left auto** — the toggle below is forced ON when this is on."
+    ),
+)
 
-style_options: dict[str, str] = {"Auto (random thematic pick)": "auto"}
-for p in PRESETS:
-    style_options[f"{p.name} — {p.heading_font} / {p.body_font}"] = p.name
+# Force Auto ON when Naegle is active (override any prior session state).
+# Must mutate session_state BEFORE rendering the widget that owns the key.
+if apply_naegle:
+    st.session_state["auto_count_checkbox"] = True
 
-col_style, col_naegle = st.columns([3, 2])
-
-with col_style:
-    style_label = st.selectbox(
-        "Style preset",
-        options=list(style_options.keys()),
-        index=0,
+with col_length:
+    auto_count = st.checkbox(
+        "Auto",
+        disabled=apply_naegle,
         help=(
-            "Each preset bundles a curated palette + Google-Fonts pairing + "
-            "composition character (drawn from the vendored ui-ux-pro-max library). "
-            "Pick a specific one or leave on Auto. Claude will use the preset's "
-            "fonts and palette throughout the deck."
+            "When checked, the LLM picks the slide count based on the topic "
+            "(8–12 typical). Forced ON when Naegle rules are active "
+            "(Naegle Rule 2 = one minute per slide → count depends on content)."
         ),
+        key="auto_count_checkbox",
     )
-    selected_style = style_options[style_label]
+    manual_length = st.number_input(
+        "Slides",
+        min_value=4,
+        max_value=20,
+        value=10,
+        step=1,
+        disabled=auto_count,
+        help="Target slide count. Disabled when 'Auto' is checked.",
+        label_visibility="collapsed",
+    )
+    length_hint: int | None = None if auto_count else int(manual_length)
 
-with col_naegle:
-    apply_naegle = st.checkbox(
-        "Apply Naegle 10 rules of academic slide design",
-        value=False,
-        help=(
-            "Off by default. When enabled, the system prompt includes Naegle 2021's "
-            "ten rules — one idea per slide, ≤6 informational elements, title = "
-            "conclusion, no animations, etc. Recommended for research / academic / "
-            "educational decks. Leave off for marketing / pitch decks."
-        ),
-    )
+# ── Theme picker (ui-ux-pro-max style) ──────────────────────────────────────
+
+# Build a dropdown of all 67 themes. Slide-friendly themes show first;
+# UI-only themes (Voice-First, Spatial UI, etc.) come at the bottom with a
+# "(less suitable for slides)" suffix so users still see them but the LLM
+# auto-pick filters them out.
+theme_options: dict[str, str] = {"Auto (LLM picks the best fit for your topic)": "auto"}
+slide_friendly = [p for p in PRESETS if p.suitable_for_slides]
+ui_only = [p for p in PRESETS if not p.suitable_for_slides]
+for p in slide_friendly:
+    theme_options[f"{p.display_name} — {p.font_pair_label}"] = p.name
+for p in ui_only:
+    theme_options[f"{p.display_name} — {p.font_pair_label} (less suitable for slides)"] = p.name
+
+theme_label = st.selectbox(
+    "Theme",
+    options=list(theme_options.keys()),
+    index=0,
+    help=(
+        "Each theme bundles a palette + typography pairing + composition mood "
+        "(from the vendored ui-ux-pro-max library — 67 themes covering "
+        "Minimalism, Brutalism, Editorial Magazine, Cyberpunk, Organic Biophilic, "
+        "Vintage Analog, etc.). The font goes with the theme — you pick the theme. "
+        "**Auto** runs a small LLM call that picks the best-fitting theme for "
+        "your prompt (e.g. historical → Editorial / Vintage Analog; tech pitch → "
+        "Minimalism / AI-Native UI; research → Academic / E-Ink)."
+    ),
+)
+selected_style = theme_options[theme_label]
 
 with st.expander("LLM backend", expanded=False):
     LLM_PREFS = {
@@ -230,7 +257,8 @@ def _start_worker(*, kind: str) -> None:
         "prompt": prompt,
         "output_path": output_path,
         "llm_pref": llm_pref,
-        "length_hint": int(length_hint),
+        # length_hint may be None (Auto / forced by Naegle) — pass through.
+        "length_hint": length_hint,
         "max_iterations": int(max_iterations),
         "style": selected_style,
         "apply_naegle": apply_naegle,

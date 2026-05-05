@@ -267,9 +267,11 @@ def freeform_generate(
     llm = get_llm(prefer=llm_pref)
     _emit(f"LLM backend: {llm.name}")
 
-    preset = get_preset(style)
+    if not style or style.lower() == "auto":
+        _emit("Picking best-fitting theme via LLM…")
+    preset = get_preset(style, prompt=prompt, llm=llm)
     _emit(
-        f"Style preset: {preset.name} ({preset.heading_font} / {preset.body_font})"
+        f"Theme: {preset.display_name} — {preset.heading_font} / {preset.body_font}"
         + (" + Naegle rules" if apply_naegle else "")
     )
 

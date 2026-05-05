@@ -1,31 +1,61 @@
-"""Curated style presets for editorial slide decks.
+"""Style presets — 67 themes loaded from vendored ui-ux-pro-max styles.csv.
 
-Each preset bundles:
-- A 6-color palette (ink / paper / rust / ash / bone / gold) — fits the
-  editorial vocabulary the freeform helpers expect.
-- A heading + body Google Font pairing (sourced from the vendored
-  ui-ux-pro-max typography library, then matched to a thematic palette).
-- A short prose `composition_notes` paragraph the LLM reads to set the
-  visual character of the deck.
-- A `css_import` ready to drop into HTML+CSS for WeasyPrint, plus a
-  `font_family_decl` block for `@font-face` if fonts are bundled locally.
+Each theme bundles:
+- A palette derived from the CSV's `Primary Colors` + `Secondary Colors`
+  hex codes, mapped by luminance/saturation onto the editorial 6-slot
+  palette (ink / paper / rust / ash / bone / gold).
+- A typography pair selected from typography.csv by matching the theme's
+  keywords against the typography pair's mood. The font is part of the
+  theme — the user picks a theme, not a font.
+- The `AI Prompt Keywords` text from styles.csv as `composition_notes` —
+  this is a pre-written instruction designed to be injected into an LLM
+  prompt, courtesy of the upstream ui-ux-pro-max library.
+- A `css_import` ready to drop into HTML+CSS for the WeasyPrint pipeline.
+- A `suitable_for_slides` heuristic flag — UI-interaction-only themes
+  (Glassmorphism, Skeuomorphism, Voice-First, etc.) are flagged false but
+  still listed; the LLM auto-picker filters them out.
 
-Twenty presets cover the editorial spectrum (sober archival, modern tech,
-warm vintage, luxury serif, brutalist, scientific, etc.). Multilingual
-and very-niche pairings (gaming, pixel, kid-friendly) are intentionally
-excluded — they don't fit the research / corporate / educational deck
-context.
+`get_preset(name, prompt, llm)`:
+- name = a slug → that exact preset
+- name = "auto" + prompt + llm → small LLM call picks the best-fitting theme
+- name = "auto" only → falls back to random pick
 """
 
 from __future__ import annotations
 
+import csv
+import logging
 import random
+import re
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ia_pptx.core._llm import LLM
+
+logger = logging.getLogger(__name__)
+
+# ─── Data files ─────────────────────────────────────────────────────────────
+
+
+def _vendor_root() -> Path:
+    """Locate the vendored ui-ux-pro-max data directory."""
+    here = Path(__file__).resolve()
+    for ancestor in here.parents:
+        candidate = ancestor / "vendor" / "ui-ux-pro-max" / "data"
+        if candidate.is_dir():
+            return candidate
+    raise RuntimeError("vendor/ui-ux-pro-max/data not found")
+
+
+# ─── Models ─────────────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
 class Palette:
-    """Six-color editorial palette. All hex values without the leading `#`."""
+    """Six-color editorial palette. Hex values without the leading `#`."""
 
     ink: str
     paper: str
@@ -47,499 +77,379 @@ class Palette:
 
 @dataclass(frozen=True)
 class StylePreset:
-    """A complete style preset for a deck."""
+    """A complete theme bundle: palette + typography + composition mood."""
 
-    name: str
-    mood: str  # one-line description of visual character
+    name: str  # slug, e.g. "minimalism-swiss"
+    display_name: str  # "Minimalism & Swiss Style"
+    category: str
+    keywords: tuple[str, ...]
+    mood: str  # short prose summary (1–2 sentences)
+    palette: Palette
     heading_font: str
     body_font: str
-    palette: Palette
-    composition_notes: str  # 2–4 sentences of design guidance for the LLM
-    css_import: str  # ready-to-paste @import url(...) for Google Fonts
+    composition_notes: str  # the AI Prompt Keywords from upstream
+    css_import: str
+    suitable_for_slides: bool
 
     @property
     def font_pair_label(self) -> str:
         return f"{self.heading_font} / {self.body_font}"
 
 
-# ─── Curated presets ────────────────────────────────────────────────────────
-# Palettes are hand-picked per preset to fit the typographic mood. Fonts come
-# directly from vendor/ui-ux-pro-max/data/typography.csv (ui-ux-pro-max upstream).
+# ─── Color helpers ──────────────────────────────────────────────────────────
 
-_GOOGLE_BASE = "https://fonts.googleapis.com/css2"
+_HEX_RE = re.compile(r"#([0-9A-Fa-f]{6})")
 
 
-def _gf_import(spec: str) -> str:
-    return f"@import url('{_GOOGLE_BASE}?{spec}&display=swap');"
+def _strip_hash(h: str) -> str:
+    return h[1:] if h.startswith("#") else h
 
 
-PRESETS: list[StylePreset] = [
-    StylePreset(
-        name="editorial-classic",
-        mood="Literary, sober, archival — a published-textbook spread.",
-        heading_font="Cormorant Garamond",
-        body_font="Libre Baskerville",
-        palette=Palette(
-            ink="1A1612",
-            paper="F2EDE3",
-            rust="8B2E1F",
-            ash="5C5750",
-            bone="DCD5C4",
-            gold="B8895A",
+def _luminance(hex_code: str) -> float:
+    """Approximate WCAG relative luminance — for sorting darkest→lightest."""
+    h = _strip_hash(hex_code)
+    r = int(h[:2], 16) / 255
+    g = int(h[2:4], 16) / 255
+    b = int(h[4:6], 16) / 255
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _saturation(hex_code: str) -> float:
+    """HSL saturation 0..1 — for picking the most chromatic accent."""
+    h = _strip_hash(hex_code)
+    r = int(h[:2], 16) / 255
+    g = int(h[2:4], 16) / 255
+    b = int(h[4:6], 16) / 255
+    mx, mn = max(r, g, b), min(r, g, b)
+    if mx == mn:
+        return 0.0
+    lum = (mx + mn) / 2
+    return (mx - mn) / (mx + mn) if lum < 0.5 else (mx - mn) / (2 - mx - mn)
+
+
+def _hue_warmth(hex_code: str) -> float:
+    """Crude warmth proxy — red+yellow > blue+green. Used to pick gold/rust."""
+    h = _strip_hash(hex_code)
+    r = int(h[:2], 16)
+    g = int(h[2:4], 16)
+    b = int(h[4:6], 16)
+    return r + 0.5 * g - b
+
+
+# Sensible defaults when extraction fails for some slot.
+_DEFAULT_PALETTE = Palette(
+    ink="111111",
+    paper="FFFFFF",
+    rust="C7301F",
+    ash="525252",
+    bone="E5E5E5",
+    gold="B89556",
+)
+
+
+def _palette_from_hexes(hexes: list[str]) -> Palette:
+    """Map an unordered list of hex codes onto the 6 editorial slots.
+
+    Heuristic:
+      - ink  = darkest
+      - paper = lightest
+      - rust = most-saturated, warm-leaning
+      - gold = warm + high luminance among the remaining
+      - ash, bone = filled from remaining mid-range neutrals
+    """
+    if not hexes:
+        return _DEFAULT_PALETTE
+
+    by_lum = sorted({h.upper(): _luminance(h) for h in hexes}.items(), key=lambda kv: kv[1])
+    if not by_lum:
+        return _DEFAULT_PALETTE
+
+    ink_hex = by_lum[0][0]
+    paper_hex = by_lum[-1][0]
+    middle = [h for h, _lum in by_lum[1:-1]]
+
+    # Pick rust = most saturated of remaining (any).
+    if middle:
+        rust_hex = max(middle, key=_saturation)
+        middle.remove(rust_hex)
+    else:
+        rust_hex = paper_hex
+    # Gold = warm + high luminance among remaining.
+    if middle:
+        warms = sorted(middle, key=_hue_warmth, reverse=True)
+        gold_hex = warms[0]
+        middle.remove(gold_hex)
+    else:
+        gold_hex = rust_hex
+    # Ash = darker mid-neutral remaining; bone = lighter.
+    if middle:
+        middle.sort(key=_luminance)
+        ash_hex = middle[0]
+        bone_hex = middle[-1] if len(middle) > 1 else middle[0]
+    else:
+        ash_hex = "525252"
+        bone_hex = "E5E5E5"
+
+    return Palette(
+        ink=_strip_hash(ink_hex),
+        paper=_strip_hash(paper_hex),
+        rust=_strip_hash(rust_hex),
+        ash=_strip_hash(ash_hex),
+        bone=_strip_hash(bone_hex),
+        gold=_strip_hash(gold_hex),
+    )
+
+
+# ─── Typography matching ────────────────────────────────────────────────────
+
+# Maps style keyword groups to the typography "Font Pairing Name" that fits.
+# Matched in order; first match wins.
+_TYPO_HEURISTICS: list[tuple[tuple[str, ...], str]] = [
+    # Brutalism, raw, harsh, anti-polish
+    (("brutal", "raw", "anti-polish", "harsh"), "Brutalist Raw"),
+    (("neubrutalism", "neubrutal"), "Neubrutalist Bold"),
+    # Editorial / magazine / journalistic
+    (("editorial", "magazine", "journalistic", "newsroom"), "Editorial Classic"),
+    (("news",), "News Editorial"),
+    (("vogue", "fashion"), "Fashion Forward"),
+    (("vintage", "retro"), "Retro Vintage"),
+    (("art deco", "deco"), "Art Deco"),
+    # Luxury / refined
+    (("luxury", "elegant", "refined", "premium", "high-end"), "Luxury Serif"),
+    (("bodoni", "fashion magazine"), "Magazine Style"),
+    # Tech / modern
+    (("cyberpunk", "futuristic", "neon", "sci-fi", "hud", "fui"), "Crypto/Web3"),
+    (("tech", "saas", "startup"), "Tech Startup"),
+    (("ai-native",), "Premium Sans"),
+    (("y2k", "vaporwave", "memphis"), "Gaming Bold"),
+    # Data dense / dashboards
+    (("dashboard", "data-dense", "analytics", "data"), "Dashboard Data"),
+    (("financial", "executive"), "Corporate Trust"),
+    # Minimalism / Swiss
+    (("swiss", "minimal", "exaggerated minimalism"), "Minimal Swiss"),
+    (("clean direct",), "Minimal Swiss"),
+    # Playful / kinetic / motion
+    (("kinetic", "motion-driven", "parallax", "motion"), "Kinetic Motion"),
+    (("playful", "fun", "energetic"), "Playful Creative"),
+    # Bold / statement
+    (("bold", "statement", "strong"), "Bold Statement"),
+    (("vibrant", "block-based"), "Bold Statement"),
+    # Wellness / nature / organic / biophilic
+    (("organic", "biophilic", "nature", "biomimetic", "earth", "soft"), "Wellness Calm"),
+    (("nature distilled",), "Wellness Calm"),
+    # Academic / scientific
+    (("academic", "scientific", "research"), "Academic/Research"),
+    (
+        (
+            "e-ink",
+            "paper",
         ),
-        composition_notes=(
-            "Long-form serif headlines, italic emphasis, generous side margins. "
-            "Footers carry small italic captions. Pairs with hand-drawn rust accents "
-            "(thin vertical bars, subtle separators). Avoid bold sans-serif anywhere."
-        ),
-        css_import=_gf_import(
-            "family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500"
-            "&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400"
-        ),
+        "Academic/Archival",
     ),
-    StylePreset(
-        name="academic-archival",
-        mood="Scholarly, restrained, historical — a journal page from the 1920s.",
-        heading_font="EB Garamond",
-        body_font="Crimson Text",
-        palette=Palette(
-            ink="1F1B16",
-            paper="EFE7D6",
-            rust="6B2C1F",
-            ash="60584C",
-            bone="C9BFA8",
-            gold="A87C3A",
-        ),
-        composition_notes=(
-            "Old-style figures and small caps. Generous leading. Use Roman numerals "
-            "for sections. Citations with em-dash and abbreviated outlets."
-        ),
-        css_import=_gf_import(
-            "family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500"
-            "&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600"
-        ),
-    ),
-    StylePreset(
-        name="news-editorial",
-        mood="Magazine masthead — Newsreader serif headline over a clean sans body.",
-        heading_font="Newsreader",
-        body_font="Roboto",
-        palette=Palette(
-            ink="0F0F0F",
-            paper="FFFFFF",
-            rust="A92013",
-            ash="555555",
-            bone="E5E1D8",
-            gold="C29545",
-        ),
-        composition_notes=(
-            "High contrast, generous whitespace, decisive hierarchy. Eyebrows "
-            "in red caps, single rule under titles. Each slide reads like a feature page."
-        ),
-        css_import=_gf_import(
-            "family=Newsreader:ital,wght@0,400;0,500;0,700;0,800;1,400"
-            "&family=Roboto:wght@300;400;500;700"
-        ),
-    ),
-    StylePreset(
-        name="magazine-bodoni",
-        mood="High-fashion magazine — Bodoni headline, classical contrast.",
-        heading_font="Libre Bodoni",
-        body_font="Public Sans",
-        palette=Palette(
-            ink="0A0A0A",
-            paper="FAFAF6",
-            rust="6F1A1A",
-            ash="6E6E6E",
-            bone="E8E5DD",
-            gold="A18554",
-        ),
-        composition_notes=(
-            "Hairline strokes, ultra-thin caps, dramatic light/heavy weight contrast. "
-            "Use very-tight tracking on display sizes. Numbers in tabular figures."
-        ),
-        css_import=_gf_import(
-            "family=Libre+Bodoni:ital,wght@0,400;0,500;0,700;0,900;1,400;1,700"
-            "&family=Public+Sans:wght@300;400;500;700"
-        ),
-    ),
-    StylePreset(
-        name="luxury-minimalist",
-        mood="High-end product page — Bodoni Moda over Jost, restrained palette.",
-        heading_font="Bodoni Moda",
-        body_font="Jost",
-        palette=Palette(
-            ink="0E0E0E",
-            paper="F7F4EE",
-            rust="8B6F47",
-            ash="6F6A60",
-            bone="E2DCCF",
-            gold="C49B4F",
-        ),
-        composition_notes=(
-            "Use display Bodoni at 60–120pt with extreme thin/heavy contrast. "
-            "Body text small, heavily letter-spaced. Lots of whitespace; one "
-            "image or one number per slide is enough."
-        ),
-        css_import=_gf_import(
-            "family=Bodoni+Moda:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400"
-            "&family=Jost:wght@200;300;400;500;700"
-        ),
-    ),
-    StylePreset(
-        name="bold-statement",
-        mood="Strong, declarative — Bebas Neue all-caps display, pure sans body.",
-        heading_font="Bebas Neue",
-        body_font="Source Sans 3",
-        palette=Palette(
-            ink="111111",
-            paper="F4F2EF",
-            rust="C7301F",
-            ash="525252",
-            bone="DEDAD2",
-            gold="E2A33C",
-        ),
-        composition_notes=(
-            "Headlines in tall condensed caps. Body is concise and grounded. "
-            "Use heavy color blocks (full-bleed quartiles) and oversized numerals. "
-            "Conclusion banners look like protest posters."
-        ),
-        css_import=_gf_import("family=Bebas+Neue&family=Source+Sans+3:wght@300;400;500;600;700"),
-    ),
-    StylePreset(
-        name="tech-startup",
-        mood="Modern startup pitch — Space Grotesk over DM Sans, high contrast.",
-        heading_font="Space Grotesk",
-        body_font="DM Sans",
-        palette=Palette(
-            ink="0A0A0A",
-            paper="FFFFFF",
-            rust="FF5A1F",
-            ash="6B7280",
-            bone="E5E5E5",
-            gold="FFB800",
-        ),
-        composition_notes=(
-            "Snappy 2-line headlines. Numbers in large weight-700 tabular. Thin "
-            "rules, generous whitespace, single accent color per slide. Avoid serif. "
-            "Lean into product-page composition: hero stat, three-column comparison."
-        ),
-        css_import=_gf_import(
-            "family=Space+Grotesk:wght@400;500;600;700"
-            "&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400"
-        ),
-    ),
-    StylePreset(
-        name="minimal-swiss",
-        mood="Helvetica-grade Swiss minimalism — Inter throughout, grid-based.",
-        heading_font="Inter",
-        body_font="Inter",
-        palette=Palette(
-            ink="000000",
-            paper="FFFFFF",
-            rust="DC2626",
-            ash="525252",
-            bone="E5E5E5",
-            gold="000000",
-        ),
-        composition_notes=(
-            "Strict 12-column grid. No serif anywhere. Black on white, single-color "
-            "accent (the rust). Headlines lowercase, tight tracking. Right-aligned "
-            "page numbers. No decorative shapes — typographic hierarchy carries everything."
-        ),
-        css_import=_gf_import("family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400"),
-    ),
-    StylePreset(
-        name="brutalist-raw",
-        mood="Raw, direct — Space Mono everywhere, blocky and unpolished.",
-        heading_font="Space Mono",
-        body_font="Space Mono",
-        palette=Palette(
-            ink="000000",
-            paper="FFFF00",
-            rust="FF0000",
-            ash="333333",
-            bone="CCCCCC",
-            gold="000000",
-        ),
-        composition_notes=(
-            "Mono everywhere. Hard edges. High-contrast hot color blocks (yellow + black + red). "
-            "ASCII-style separators. Captions in [BRACKETS]. Section dividers are giant blocks "
-            "of solid color with text knocked out."
-        ),
-        css_import=_gf_import("family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700"),
-    ),
-    StylePreset(
-        name="neubrutalist-bold",
-        mood="Neo-brutalist — Lexend Mega blocky display, hard-edged shapes.",
-        heading_font="Lexend Mega",
-        body_font="Public Sans",
-        palette=Palette(
-            ink="0A0A0A",
-            paper="FFEFB7",
-            rust="E5374C",
-            ash="3F3F3F",
-            bone="FFD92E",
-            gold="3B82F6",
-        ),
-        composition_notes=(
-            "Thick hard-shadow boxes (offset 6–8px), no gradients. Saturated pop colors. "
-            "Cards rotate -1°/+1° for jaunty energy. Headlines very tight. Body in "
-            "Public Sans, unjustified."
-        ),
-        css_import=_gf_import(
-            "family=Lexend+Mega:wght@400;500;700;800;900"
-            "&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400"
-        ),
-    ),
-    StylePreset(
-        name="wellness-calm",
-        mood="Soft, natural — Lora serif headline, Raleway body, warm earth.",
-        heading_font="Lora",
-        body_font="Raleway",
-        palette=Palette(
-            ink="2C2620",
-            paper="F4EFE6",
-            rust="8C5A3C",
-            ash="6E6358",
-            bone="DDD3C2",
-            gold="B89556",
-        ),
-        composition_notes=(
-            "Generous leading, soft photography overlays welcome (full-bleed with "
-            "warm gradient mask). Italic body for quotes. Round corner radii (8–12px) "
-            "if any. Avoid hard edges and saturated colors."
-        ),
-        css_import=_gf_import(
-            "family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500"
-            "&family=Raleway:wght@300;400;500;600;700"
-        ),
-    ),
-    StylePreset(
-        name="retro-vintage",
-        mood="Retro magazine — Abril Fatface display, cream + ink, nostalgic.",
-        heading_font="Abril Fatface",
-        body_font="Merriweather",
-        palette=Palette(
-            ink="1F1A14",
-            paper="F0E7D4",
-            rust="A53A24",
-            ash="6B6358",
-            bone="D4C8AE",
-            gold="C49340",
-        ),
-        composition_notes=(
-            "Bold slab display headlines. Section dividers like vintage book chapter "
-            "openings (oversized roman numeral, ornament rule). Decorative dingbats "
-            "between paragraphs. Captions in italic small caps."
-        ),
-        css_import=_gf_import(
-            "family=Abril+Fatface&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400"
-        ),
-    ),
-    StylePreset(
-        name="art-deco",
-        mood="Geometric vintage — Poiret One thin display, deco gold and ink.",
-        heading_font="Poiret One",
-        body_font="Didact Gothic",
-        palette=Palette(
-            ink="0E0E0E",
-            paper="F4EAD5",
-            rust="8C2A2A",
-            ash="6E6557",
-            bone="DAC79B",
-            gold="C9A24A",
-        ),
-        composition_notes=(
-            "Thin display caps with wide letter-spacing. Symmetric layouts, gold "
-            "hairline frames, geometric ornaments at corners. Section openers feel "
-            "like a 1925 cinema poster."
-        ),
-        css_import=_gf_import("family=Poiret+One&family=Didact+Gothic"),
-    ),
-    StylePreset(
-        name="luxury-serif",
-        mood="High-end editorial — Cormorant display + Montserrat body, refined.",
-        heading_font="Cormorant",
-        body_font="Montserrat",
-        palette=Palette(
-            ink="111111",
-            paper="FAF7F2",
-            rust="6F2A1A",
-            ash="6B665E",
-            bone="E0DACD",
-            gold="B89C5A",
-        ),
-        composition_notes=(
-            "Quiet luxury — extreme weight contrast (thin display + bold sans tags). "
-            "Heavy whitespace. Single-color accent. Page numbers as small caps with "
-            "tight tracking. Avoid heavy color blocks."
-        ),
-        css_import=_gf_import(
-            "family=Cormorant:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400"
-            "&family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400"
-        ),
-    ),
-    StylePreset(
-        name="geometric-modern",
-        mood="Clean geometric — Outfit display, Work Sans body.",
-        heading_font="Outfit",
-        body_font="Work Sans",
-        palette=Palette(
-            ink="111827",
-            paper="F9FAFB",
-            rust="2563EB",
-            ash="6B7280",
-            bone="E5E7EB",
-            gold="F59E0B",
-        ),
-        composition_notes=(
-            "Geometric headlines, slightly tracked. Cards with very subtle 1px borders. "
-            "Sparing color use — one accent per slide. Simple icons (line weight uniform). "
-            "Tabular numerals on stats."
-        ),
-        css_import=_gf_import(
-            "family=Outfit:wght@300;400;500;600;700;800"
-            "&family=Work+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400"
-        ),
-    ),
-    StylePreset(
-        name="academic-research",
-        mood="Readable scientific paper — Crimson Pro + Atkinson Hyperlegible.",
-        heading_font="Crimson Pro",
-        body_font="Atkinson Hyperlegible",
-        palette=Palette(
-            ink="111111",
-            paper="FFFFFF",
-            rust="1F4E79",
-            ash="555555",
-            bone="E0E0E0",
-            gold="A88A2D",
-        ),
-        composition_notes=(
-            "Plain figure-and-caption layout. Tables with hairline rules. Numbers in "
-            "tabular figures. Citations as numbered superscripts. Footers carry "
-            "section + page number. Accessible-first: every chart needs a caption."
-        ),
-        css_import=_gf_import(
-            "family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400"
-            "&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700"
-        ),
-    ),
-    StylePreset(
-        name="fashion-forward",
-        mood="Creative editorial — Syne display, Manrope body, bold accents.",
-        heading_font="Syne",
-        body_font="Manrope",
-        palette=Palette(
-            ink="111111",
-            paper="F8F4ED",
-            rust="DC2D5E",
-            ash="6B6357",
-            bone="E5DFD0",
-            gold="DDB35B",
-        ),
-        composition_notes=(
-            "Asymmetric, off-grid layouts. Display headlines often run off-edge. "
-            "Photo treatments with duotone (rust + ink). Captions vertical (rotated 90°). "
-            "Avoid centered alignment — everything is left- or right-anchored."
-        ),
-        css_import=_gf_import(
-            "family=Syne:wght@400;500;600;700;800&family=Manrope:wght@300;400;500;600;700"
-        ),
-    ),
-    StylePreset(
-        name="premium-sans",
-        mood="Clean, premium — Satoshi + General Sans, modern luxury SaaS.",
-        heading_font="Satoshi",
-        body_font="General Sans",
-        palette=Palette(
-            ink="0A0A0A",
-            paper="FFFFFF",
-            rust="6938EF",
-            ash="64748B",
-            bone="E2E8F0",
-            gold="EAB308",
-        ),
-        composition_notes=(
-            "Tight headlines, very pure sans. Soft 4–6px corner radii on cards. "
-            "Thin 1px borders, subtle 5% box-shadow. Use violet accent sparingly for CTAs."
-        ),
-        css_import=_gf_import(
-            # Satoshi is on Google Fonts (only via fontshare normally) — use Inter Tight as the closest GF substitute
-            "family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400"
-            "&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400"
-        ),
-    ),
-    StylePreset(
-        name="gen-z-brutal",
-        mood="Edgy, loud — Anton headline, Epilogue body, hot color hits.",
-        heading_font="Anton",
-        body_font="Epilogue",
-        palette=Palette(
-            ink="0E0E0E",
-            paper="EFEDE3",
-            rust="FF3B30",
-            ash="464338",
-            bone="C8C4B5",
-            gold="FFE600",
-        ),
-        composition_notes=(
-            "Anton in massive caps that fill the slide. Yellow/red flat blocks. "
-            "Body text small and unjustified. Section dividers are full-bleed type slabs. "
-            "No decoration — the type IS the design."
-        ),
-        css_import=_gf_import(
-            "family=Anton&family=Epilogue:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400"
-        ),
-    ),
-    StylePreset(
-        name="dashboard-data",
-        mood="Operations / finance dashboard — Fira Code + Fira Sans, data-dense.",
-        heading_font="Fira Sans",
-        body_font="Fira Sans",
-        palette=Palette(
-            ink="0F172A",
-            paper="F8FAFC",
-            rust="0EA5E9",
-            ash="64748B",
-            bone="E2E8F0",
-            gold="F59E0B",
-        ),
-        composition_notes=(
-            "All numbers in tabular Fira Code (mono). Tables and charts dominate. "
-            "Headers small, body data-prominent. Subtle blue accent. Hairline grid rules. "
-            "Footnotes in mono, italicized."
-        ),
-        css_import=_gf_import(
-            "family=Fira+Code:wght@400;500;600"
-            "&family=Fira+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400"
-        ),
-    ),
+    # Storytelling / hero
+    (("storytelling", "narrative", "hero"), "Bold Statement"),
+    (("trust", "authority"), "Corporate Trust"),
+    # 3D / hyperrealism / dimensional
+    (("3d", "hyperrealism", "dimensional", "spatial", "skeuomorphism"), "Geometric Modern"),
+    (("liquid glass", "glassmorphism", "claymorphism", "neumorphism", "soft ui"), "Soft Rounded"),
+    # Aurora / gradient mesh
+    (("aurora", "gradient mesh"), "Fashion Forward"),
+    # Pixel / retro
+    (("pixel", "8-bit"), "Pixel Retro"),
+    # Dark mode
+    (("dark", "oled"), "Premium Sans"),
+    # Gen Z / chaos / maximalism
+    (("gen z", "chaos", "maximalism"), "Gen Z Brutal"),
+    # Inclusive / accessible
+    (("accessible", "inclusive", "ethical", "wcag"), "Accessibility First"),
+    # Conversion / landing / showcase
+    (("conversion", "landing", "showcase", "feature-rich", "social proof"), "Modern Professional"),
+    (("interactive", "demo", "voice-first", "zero interface"), "Geometric Modern"),
+    # Fallback
 ]
+_TYPO_FALLBACK = "Modern Professional"
+
+# Themes that don't translate well to slide decks (interaction-only,
+# motion-only, voice, etc.) — flagged so the LLM auto-picker skips them.
+_UI_ONLY_KEYWORDS = (
+    "voice-first",
+    "voice multimodal",
+    "interactive cursor",
+    "tactile digital",
+    "deformable ui",
+    "zero interface",
+    "spatial ui",
+    "visionos",
+    "real-time monitoring",
+    "drill-down",
+    "interactive product demo",
+    "micro-interactions",
+    "motion-driven",
+    "parallax storytelling",
+)
 
 
-_BY_NAME: dict[str, StylePreset] = {p.name: p for p in PRESETS}
+# ─── CSV loaders (lazy + cached) ────────────────────────────────────────────
+
+
+@lru_cache(maxsize=1)
+def _typography_index() -> dict[str, dict[str, str]]:
+    """Map font-pair name → {heading_font, body_font, css_import}."""
+    out: dict[str, dict[str, str]] = {}
+    typo_path = _vendor_root() / "typography.csv"
+    with typo_path.open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            pair_name = row["Font Pairing Name"].strip()
+            css = row.get("CSS Import", "").strip()
+            out[pair_name] = {
+                "heading_font": row["Heading Font"].strip(),
+                "body_font": row["Body Font"].strip(),
+                "css_import": css,
+            }
+    return out
+
+
+def _slugify(text: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return s
+
+
+def _typo_for(keywords_blob: str, category_blob: str) -> dict[str, str]:
+    """Pick a typography pair given a style's keywords + category."""
+    blob = (keywords_blob + " " + category_blob).lower()
+    typo = _typography_index()
+    for needles, pair_name in _TYPO_HEURISTICS:
+        if any(n in blob for n in needles):
+            if pair_name in typo:
+                return typo[pair_name]
+            logger.warning("Typography pair %r not found in typography.csv", pair_name)
+    return typo.get(_TYPO_FALLBACK, next(iter(typo.values())))
+
+
+def _is_ui_only(category: str, keywords: str) -> bool:
+    blob = (category + " " + keywords).lower()
+    return any(k in blob for k in _UI_ONLY_KEYWORDS)
+
+
+def _short_mood(keywords: str) -> str:
+    """Trim the keyword list down to a one-line mood description."""
+    head = keywords.split(",")[:6]
+    return ", ".join(k.strip() for k in head)
+
+
+@lru_cache(maxsize=1)
+def _load_presets() -> tuple[StylePreset, ...]:
+    """Load all 67 themes from styles.csv into StylePreset objects."""
+    styles_path = _vendor_root() / "styles.csv"
+    presets: list[StylePreset] = []
+    with styles_path.open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            category = row["Style Category"].strip()
+            if not category:
+                continue
+            color_blob = row.get("Primary Colors", "") + "," + row.get("Secondary Colors", "")
+            hexes = [m.group(0) for m in _HEX_RE.finditer(color_blob)]
+            palette = _palette_from_hexes(hexes)
+            keywords = row.get("Keywords", "")
+            ai_prompt = row.get("AI Prompt Keywords", "").strip()
+            typo = _typo_for(keywords, category)
+            preset = StylePreset(
+                name=_slugify(category),
+                display_name=category,
+                category=category,
+                keywords=tuple(k.strip() for k in keywords.split(",") if k.strip()),
+                mood=_short_mood(keywords),
+                palette=palette,
+                heading_font=typo["heading_font"],
+                body_font=typo["body_font"],
+                composition_notes=ai_prompt or _short_mood(keywords),
+                css_import=typo["css_import"],
+                suitable_for_slides=not _is_ui_only(category, keywords),
+            )
+            presets.append(preset)
+    if not presets:
+        raise RuntimeError("Failed to load any presets from styles.csv")
+    return tuple(presets)
+
+
+def _index() -> dict[str, StylePreset]:
+    return {p.name: p for p in _load_presets()}
+
+
+# ─── Public API ─────────────────────────────────────────────────────────────
+
+# Eagerly materialize so callers can do `from .presets import PRESETS` and
+# iterate. The CSV is small; loading takes < 5 ms.
+PRESETS: tuple[StylePreset, ...] = _load_presets()
 
 
 def list_preset_names() -> list[str]:
-    """All preset names, alphabetical."""
-    return sorted(_BY_NAME.keys())
+    return sorted(p.name for p in _load_presets())
 
 
-def get_preset(name: str | None, *, seed: int | None = None) -> StylePreset:
-    """Resolve a preset by name. `None`, `""`, or `"auto"` picks one at random.
+def list_slide_friendly() -> list[StylePreset]:
+    return [p for p in _load_presets() if p.suitable_for_slides]
 
-    `seed` lets callers get a reproducible random pick.
+
+def get_preset(
+    name: str | None,
+    *,
+    prompt: str = "",
+    llm: LLM | None = None,
+    seed: int | None = None,
+) -> StylePreset:
+    """Resolve a preset.
+
+    - name = a known slug → that exact preset.
+    - name = None / "" / "auto" / "random" — uses `prompt` + `llm` if present
+      to pick the best-fitting theme via a tiny LLM call. Falls back to a
+      random slide-friendly preset otherwise.
     """
+    idx = _index()
+
     if not name or name.lower() in {"auto", "random", ""}:
+        if name and name.lower() == "auto" and prompt and llm is not None:
+            try:
+                picked = _llm_pick(prompt, llm)
+                if picked in idx:
+                    return idx[picked]
+                logger.warning("LLM picked %r — not in index, falling back to random", picked)
+            except Exception as exc:
+                logger.warning("LLM auto-pick failed (%s); falling back to random", exc)
         rng = random.Random(seed)
-        return rng.choice(PRESETS)
-    if name not in _BY_NAME:
-        raise ValueError(
-            f"Unknown style preset: {name!r}. Available: {', '.join(list_preset_names())}"
-        )
-    return _BY_NAME[name]
+        return rng.choice(list_slide_friendly() or list(_load_presets()))
+
+    if name in idx:
+        return idx[name]
+    raise ValueError(
+        f"Unknown style preset: {name!r}. {len(idx)} available — use list-styles to inspect."
+    )
+
+
+def _llm_pick(prompt: str, llm: LLM) -> str:
+    """Ask the LLM to pick the best-fitting theme slug for the user's prompt."""
+    catalog = list_slide_friendly()
+    catalog_lines = [f"- {p.name}: {p.mood}" for p in catalog]
+    system = (
+        "You pick a visual theme for a slide deck given the user's topic. "
+        "Output ONLY the slug of the best-fitting theme — nothing else, no quotes, "
+        "no markdown, no commentary."
+    )
+    user = (
+        "DECK TOPIC:\n" + prompt.strip() + "\n\n"
+        "AVAILABLE THEMES (slug: mood):\n"
+        + "\n".join(catalog_lines)
+        + "\n\nPick the slug that best fits the topic's tone, era, and audience. "
+        "If a topic is historical → favor archival / vintage / editorial themes. "
+        "If a topic is technical / startup / SaaS → favor tech / minimalism / dashboard themes. "
+        "If a topic is academic / scientific → favor academic / e-ink / minimal themes. "
+        "If a topic is creative / fashion → favor brutalist / vaporwave / chaos themes. "
+        "Output ONLY one slug from the list."
+    )
+    raw = llm.text(system=system, user=user, max_tokens=64).strip()
+    # Tolerate model adding quotes / backticks / trailing punctuation.
+    raw = raw.strip("`'\"., \n").splitlines()[0].strip()
+    return raw
 
 
 __all__ = [
@@ -548,4 +458,5 @@ __all__ = [
     "StylePreset",
     "get_preset",
     "list_preset_names",
+    "list_slide_friendly",
 ]

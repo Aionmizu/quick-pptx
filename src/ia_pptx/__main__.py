@@ -109,10 +109,18 @@ def _cmd_generate_pdf(args: argparse.Namespace) -> int:
 def _cmd_list_styles(_args: argparse.Namespace) -> int:
     from ia_pptx.design import PRESETS
 
+    print(f"Themes from ui-ux-pro-max ({len(PRESETS)} total)\n")
+    print("Slide-friendly:")
     for p in PRESETS:
-        print(f"  {p.name:24s}  {p.heading_font} / {p.body_font}")
-        print(f"    {p.mood}")
-    print(f"\nTotal: {len(PRESETS)} presets. Use --style <name> or --style auto.")
+        if not p.suitable_for_slides:
+            continue
+        print(f"  {p.name:32s}  {p.heading_font} / {p.body_font}")
+    print("\nUI-only (less suitable for slides — auto-picker skips these):")
+    for p in PRESETS:
+        if p.suitable_for_slides:
+            continue
+        print(f"  {p.name:32s}  {p.heading_font} / {p.body_font}")
+    print("\nUse --style <slug> or --style auto (LLM picks the best fit).")
     return 0
 
 

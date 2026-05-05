@@ -6,6 +6,7 @@ from ia_pptx.design.presets import (
     StylePreset,
     get_preset,
     list_preset_names,
+    list_slide_friendly,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "StylePreset",
     "get_preset",
     "list_preset_names",
+    "list_slide_friendly",
 ]
