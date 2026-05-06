@@ -4,7 +4,7 @@ title: quick-pptx
 description: Editorial-grade decks via Claude + visual QA loop.
 theme: jekyll-theme-cayman
 baseurl: ""
-url: "https://aionmizu.github.io/quick-pptx"
+url: "https://quick-pptx.marjolin.dev"
 exclude:
   - assets/_thumbs/.gitkeep
   - "*.md~"
