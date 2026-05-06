@@ -202,9 +202,16 @@ with st.expander(
                 st.error(f"Save failed: {exc}")
             else:
                 if saved:
-                    st.success(f"Saved: {', '.join(saved)}. Refresh the page to pick up.")
+                    # Stash a one-shot toast and rerun so API_KEY / GEMINI_KEY
+                    # picked up from disk at the top of the script reflect the
+                    # save without forcing the user to refresh the browser.
+                    st.session_state["_just_saved"] = saved
+                    st.rerun()
                 else:
                     st.info("Nothing to save — both inputs are empty.")
+    if "_just_saved" in st.session_state:
+        saved_now = st.session_state.pop("_just_saved")
+        st.success(f"Saved: {', '.join(saved_now)}.")
     with col_status:
         bits = []
         if API_KEY:
