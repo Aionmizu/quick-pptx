@@ -81,6 +81,17 @@ def main() -> int:
         default=70.0,
         help="Deck-level critique threshold (0–100, default 70). Below → 1 revise pass.",
     )
+    parser.add_argument(
+        "--no-carte-blanche",
+        action="store_true",
+        help="Restrict Claude Code to a Read-only toolset (no install, no shell).",
+    )
+    parser.add_argument(
+        "--use-nano-banana",
+        action="store_true",
+        help="Enable image generation via Google Gemini Nano Banana. "
+        "Requires a saved Gemini API key.",
+    )
     args = parser.parse_args()
 
     common_kwargs = {
@@ -95,6 +106,8 @@ def main() -> int:
         "plan_critic_enabled": not args.no_plan_critic,
         "final_critique_enabled": not args.no_final_critique,
         "critique_threshold": args.critique_threshold,
+        "carte_blanche": not args.no_carte_blanche,
+        "use_nano_banana": args.use_nano_banana,
     }
 
     try:

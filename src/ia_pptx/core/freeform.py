@@ -259,6 +259,8 @@ def freeform_generate(
     final_critique_enabled: bool = True,
     critique_threshold: float = 70.0,
     effort: str = "medium",
+    carte_blanche: bool = True,
+    use_nano_banana: bool = False,
 ) -> FreeformResult:
     """Generate a deck via the freeform Claude-writes-pptxgenjs pipeline.
 
@@ -271,11 +273,17 @@ def freeform_generate(
         progress: Optional callback receiving short human-readable phase messages.
         style: Theme preset slug, or "auto".
         apply_naegle: When True, append Naegle 2021's 10 rules to the prompt.
-        plan_critic_enabled: Run an adversarial pre-flight review of the prompt
-            (concerns + refined prompt + slide outline + image suggestions).
+        plan_critic_enabled: Run an adversarial pre-flight review of the prompt.
         final_critique_enabled: After visual QA, score each slide on the 10-atom
             rubric. Below threshold → ONE revise pass + re-critique.
         critique_threshold: Deck-level pass threshold (0..100, default 70).
+        effort: Claude Code reasoning depth (low/medium/high/xhigh/max).
+        carte_blanche: Allow Claude Code to install ad-hoc packages and run
+            shell commands. When False, the toolset is restricted to Read
+            (or Read+Bash if Nano Banana is on).
+        use_nano_banana: Inject the Nano Banana / Gemini Image instruction
+            so Claude can generate diagrams / illustrations / hero images
+            via scripts/gen_image.py. Requires a Gemini API key.
     """
 
     def _emit(msg: str) -> None:
@@ -286,8 +294,21 @@ def freeform_generate(
             except Exception:
                 pass  # never let UI errors kill the pipeline
 
-    llm = get_llm(prefer=llm_pref, effort=effort)
-    _emit(f"LLM backend: {llm.name} (effort={effort})")
+    llm = get_llm(
+        prefer=llm_pref,
+        effort=effort,
+        carte_blanche=carte_blanche,
+        use_nano_banana=use_nano_banana,
+    )
+    flags = ", ".join(
+        flag
+        for flag in (
+            f"effort={effort}",
+            "carte-blanche=on" if carte_blanche else "carte-blanche=off",
+            "nano-banana=on" if use_nano_banana else "nano-banana=off",
+        )
+    )
+    _emit(f"LLM backend: {llm.name} ({flags})")
 
     if not style or style.lower() == "auto":
         _emit("Picking best-fitting theme via LLM…")

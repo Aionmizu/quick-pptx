@@ -117,7 +117,7 @@ EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 _CLAUDE_TIMEOUT_S = 1500
 
 
-_CARTE_BLANCHE_NOTE = """
+_TOOLS_NOTE_TEMPLATE = """
 
 ═══════════════════════════════════════════════════════════════════════════
 CARTE BLANCHE — TOOLS, INSTALLS, AND CLEANUP DISCIPLINE
@@ -135,57 +135,6 @@ WHAT YOU MAY DO:
   - Run shell commands to inspect, test, lint your generated code before
     returning it.
 
-IMAGE GENERATION (Nano Banana family — Gemini 3.1/3 Image):
-  When the deck would benefit from an explanatory diagram, illustration, or
-  background graphic that a stock-photo search wouldn't satisfy, call:
-
-    python3 {gen_image_path} "<prompt>" --output {tmp_dir}/img-NN.png
-
-  Replace {tmp_dir} with whatever shell tempdir convention is appropriate
-  for the host (`$TMPDIR` / `$TEMP` / `%TEMP%`). Use absolute paths.
-
-  USEFUL FLAGS (all optional):
-    --model nano-banana-2 (default — gemini-3.1-flash-image-preview)
-      | nano-banana-pro (gemini-3-pro-image-preview, professional asset
-                         production, real-world Google Search grounding,
-                         supports up to 4K)
-      | nano-banana (gemini-2.5-flash-image, fastest/cheapest, 1024px only)
-    --aspect-ratio 16:9   (or 1:1 / 9:16 / 21:9 / 4:5 / 5:4 / 3:4 / 4:3 /
-                           2:3 / 3:2 / 1:4 / 4:1 / 1:8 / 8:1 — last four
-                           need nano-banana-2)
-    --resolution 1K       (default; 2K and 4K supported on -2 and -pro;
-                           512 only on -2; -original ignores this flag)
-    --grounding none      (default) | web | image (-2 only) | both (-2 only)
-    --thinking minimal    (default) | high (-2 only — slower, deeper
-                                            composition reasoning)
-
-  EXAMPLES:
-    --model nano-banana-2 --aspect-ratio 16:9 --resolution 2K \\
-        "A minimalist line diagram of the water cycle: evaporation,
-         condensation, precipitation, run-off; earth-tone palette."
-
-    --model nano-banana-pro --aspect-ratio 4:5 --resolution 4K \\
-        "Stylized magazine cover for a deck on the French Revolution,
-         large bold serif title, archival ink palette."
-
-    --model nano-banana-2 --grounding web --aspect-ratio 16:9 \\
-        "A clean, modern weather chart for the next 5 days in Paris."
-
-  EMBEDDING:
-    pptxgenjs:  slide.addImage({{ path: "<absolute path>", x: ..., y: ..., w: ..., h: ... }})
-    HTML:       <img src="file://<absolute path>" alt="...">
-
-  RULES:
-    - Use sparingly. Each generated image must CARRY information (a diagram,
-      a stylized header, a real chart). A decorative background almost
-      always loses the distracted-person test and the final critique pass
-      will flag it.
-    - Generate first when the asset is text-heavy (titles in image, charts,
-      magazine layout) — use nano-banana-pro at 2K or 4K.
-    - For simple diagrams or icons, nano-banana-2 at 1K is faster + cheaper.
-    - If the helper exits non-zero (no API key, network error, etc.),
-      proceed without the image — do not block the deck.
-
 CLEANUP DISCIPLINE (NON-NEGOTIABLE):
   - You MUST track every package you install in this run. At the end, remove
     EXACTLY those packages — `npm uninstall <pkg>` for each you ran
@@ -199,19 +148,104 @@ CLEANUP DISCIPLINE (NON-NEGOTIABLE):
   - Do not touch user dotfiles, package.json, package-lock.json, requirements,
     pyproject.toml, or any project config. If you need a temp install, prefer
     `--no-save` (npm) or `--user` (pip) so the project files stay clean.
-  - Generated images in /tmp/ are fine to leave — the pipeline keeps them
-    next to the deck for inspection.
+  - Generated images in {tmp_dir}/ are fine to leave — the pipeline keeps
+    them next to the deck for inspection.
 
 PRIORITY:
   Quality of the deck > speed of generation > cost. Take your time, install
-  what you need, polish the output. The user explicitly chose `--effort max`.
+  what you need, polish the output.
+═══════════════════════════════════════════════════════════════════════════
+"""
+
+
+_NANO_BANANA_NOTE_TEMPLATE = """
+
+═══════════════════════════════════════════════════════════════════════════
+NANO BANANA — IMAGE GENERATION IS ENABLED FOR THIS DECK
+═══════════════════════════════════════════════════════════════════════════
+The user has explicitly enabled Nano Banana (Google Gemini Image) for this
+deck. You are EXPECTED to use it whenever a slide carries a concept that
+text alone cannot convey efficiently. A deck that would benefit from images
+and ships without ANY images is a partial failure of this option.
+
+CALL THE HELPER (uses Bash):
+
+    python3 {gen_image_path} "<prompt>" --output {tmp_dir}/img-NN.png \\
+        [--model nano-banana-2|nano-banana-pro|nano-banana] \\
+        [--aspect-ratio 16:9] [--resolution 1K|2K|4K] \\
+        [--grounding none|web|image|both] [--thinking minimal|high]
+
+WHEN TO GENERATE (look for ALL of these in the user's prompt + your outline):
+  - The user explicitly asked for images / illustrations / diagrams /
+    visuals / "include a chart" / "with photos of X". OBEY: generate them.
+  - The deck describes a process, cycle, structure, anatomy, system,
+    hierarchy, geographic relationship, before/after, or comparison →
+    generate at least one explanatory diagram for the most schema-able
+    slide.
+  - The deck has a section divider that would be stronger as an editorial
+    image (a stylized magazine cover, a single-subject illustration,
+    a high-contrast hero photo) → generate it.
+  - The deck has a stat slide where the underlying topic has visual
+    iconography (a dog icon for a pet topic, a country silhouette for a
+    geo topic) → generate the icon.
+
+MODEL CHOICE (default to nano-banana-2 unless one of the cases below):
+  - nano-banana-2 (default — gemini-3.1-flash-image-preview): fastest path
+    for diagrams and illustrations at 1K. Use --resolution 2K when the
+    image will fill ≥50% of the slide.
+  - nano-banana-pro (gemini-3-pro-image-preview): use ONLY when the asset
+    needs legible IN-IMAGE TEXT (magazine cover, infographic with labels,
+    a chart with axis titles), and use --resolution 4K. Costs ~3× more.
+  - nano-banana (gemini-2.5-flash-image): smallest, only for small
+    decorative icons under 256px on the slide.
+
+ASPECT RATIO HINTS:
+  - Hero / full-bleed image: 16:9
+  - Sidebar illustration on a 2-col slide: 4:5 or 3:4
+  - Tall infographic / magazine cover: 4:5 or 2:3
+  - Section divider full-bleed: 16:9
+  - Icon that fits in a circle: 1:1
+
+GROUNDING:
+  - --grounding web: when you need real-world data (weather, current
+    events, sports scores, recent products). Works on -2 and -pro.
+  - --grounding image: when you need visual reference of a real subject
+    (a specific bird species, a famous building, a known artwork style).
+    Only on nano-banana-2.
+
+WORKFLOW PER IMAGE:
+  1. Decide the slide-level need (diagram? hero? icon?).
+  2. Pick model, aspect ratio, resolution.
+  3. Write a CONCRETE prompt — describe composition, palette,
+     style, light. The model rewards specificity. "diagram of the water
+     cycle" is weak; "minimalist line diagram of the water cycle, four
+     labeled phases (evaporation / condensation / precipitation /
+     run-off), hand-drawn lines on cream paper, earth-tone palette,
+     15° isometric perspective" is strong.
+  4. Run the helper. The script prints the absolute output path.
+  5. Embed the path in your generated deck:
+     - pptxgenjs: slide.addImage({{ path: "<abs>", x, y, w, h }})
+     - HTML:      <img src="file://<abs>" alt="...">
+  6. If the helper exits non-zero (no API key, network error, content
+     blocked), do NOT block the deck — proceed without that image and
+     surface the failure in a brief comment.
+
+QUALITY RULES (still apply):
+  - Each image MUST carry information OR be a deliberate stylistic anchor
+    (e.g. a section-divider hero). Decorative-only images that don't
+    serve the slide's takeaway WILL be flagged by the final critique.
+  - One generated image per slide max. The slide is composition, not a
+    gallery.
+  - Match the deck's palette. If the theme is monochrome ink/paper, ask
+    for "muted ink and paper tones, no saturated colors". Avoid the
+    "AI default" of saturated teal-and-purple gradients.
 ═══════════════════════════════════════════════════════════════════════════
 """
 
 
 def _resolve_gen_image_path() -> str:
     """Find scripts/gen_image.py — used to inject its absolute path into
-    the carte-blanche prompt so Claude can call it correctly."""
+    prompts so Claude can call it correctly."""
     here = Path(__file__).resolve()
     for ancestor in here.parents:
         candidate = ancestor / "scripts" / "gen_image.py"
@@ -220,10 +254,26 @@ def _resolve_gen_image_path() -> str:
     return "scripts/gen_image.py"
 
 
-_CARTE_BLANCHE_NOTE = _CARTE_BLANCHE_NOTE.format(
+_TOOLS_NOTE = _TOOLS_NOTE_TEMPLATE.format(tmp_dir=tempfile.gettempdir())
+_NANO_BANANA_NOTE = _NANO_BANANA_NOTE_TEMPLATE.format(
     gen_image_path=_resolve_gen_image_path(),
     tmp_dir=tempfile.gettempdir(),
 )
+
+
+def build_system_addendum(*, carte_blanche: bool, use_nano_banana: bool) -> str:
+    """Compose the system-prompt suffix from independent toggles.
+
+    Both flags can vary independently. Returns "" when both are off (the
+    Claude Code subprocess gets the bare project system prompt with no
+    capability hints).
+    """
+    chunks: list[str] = []
+    if carte_blanche:
+        chunks.append(_TOOLS_NOTE)
+    if use_nano_banana:
+        chunks.append(_NANO_BANANA_NOTE)
+    return "".join(chunks)
 
 
 def claude_code_available() -> bool:
@@ -279,7 +329,14 @@ class ClaudeCodeCLI:
 
     name = "claude-code-cli"
 
-    def __init__(self, model: str = "opus", effort: str = "medium") -> None:
+    def __init__(
+        self,
+        model: str = "opus",
+        effort: str = "medium",
+        *,
+        carte_blanche: bool = True,
+        use_nano_banana: bool = False,
+    ) -> None:
         # Use a tmp cwd so the CLI doesn't auto-load the project's CLAUDE.md,
         # memory, plugins, etc. on every call.
         self._isolated_cwd = Path(tempfile.gettempdir()) / "ia-pptx-claude-runner"
@@ -288,24 +345,35 @@ class ClaudeCodeCLI:
         if effort not in EFFORT_LEVELS:
             raise ValueError(f"effort must be one of {EFFORT_LEVELS}, got {effort!r}")
         self._effort = effort
+        self._carte_blanche = carte_blanche
+        self._use_nano_banana = use_nano_banana
 
     def text(self, *, system: str, user: str, max_tokens: int = 8192) -> str:
         # max_tokens isn't directly settable on Claude Code CLI; the model
         # picks. Most calls are well under the model's max anyway.
         del max_tokens
-        # Carte blanche — Claude has full default toolset (Bash, Edit, Write,
-        # Read) so it can install packages, run commands, etc. The system
-        # prompt addendum tells it to clean up everything it installs.
-        # Prompt is piped via stdin to dodge variadic-flag positional issues.
+        # Compose the system addendum from the two independent toggles.
+        addendum = build_system_addendum(
+            carte_blanche=self._carte_blanche,
+            use_nano_banana=self._use_nano_banana,
+        )
+        args: list[str] = [
+            "--model",
+            self._model,
+            "--effort",
+            self._effort,
+            "--system-prompt",
+            system + addendum,
+        ]
+        # When the user did NOT grant carte blanche, narrow the toolset.
+        # Nano Banana still needs Bash to run scripts/gen_image.py — so if
+        # use_nano_banana is on we expose Bash + Read; otherwise we lock
+        # everything down to the safe minimum (Read only).
+        if not self._carte_blanche:
+            allowed = "Bash,Read" if self._use_nano_banana else "Read"
+            args.extend(["--allowedTools", allowed])
         envelope = _claude_run(
-            args=[
-                "--model",
-                self._model,
-                "--effort",
-                self._effort,
-                "--system-prompt",
-                system + _CARTE_BLANCHE_NOTE,
-            ],
+            args=args,
             stdin_text=user,
             cwd=self._isolated_cwd,
         )
@@ -343,7 +411,13 @@ class ClaudeCodeCLI:
 # ─── Factory ─────────────────────────────────────────────────────────────────
 
 
-def get_llm(prefer: str = "auto", *, effort: str = "medium") -> LLM:
+def get_llm(
+    prefer: str = "auto",
+    *,
+    effort: str = "medium",
+    carte_blanche: bool = True,
+    use_nano_banana: bool = False,
+) -> LLM:
     """Return an LLM backend.
 
     `prefer`:
@@ -353,8 +427,16 @@ def get_llm(prefer: str = "auto", *, effort: str = "medium") -> LLM:
       - "api":  force Anthropic API (raises if no key).
 
     `effort` controls Claude Code's reasoning depth (low/medium/high/xhigh/max).
-    Ignored when the resolved backend is the Anthropic API.
+    `carte_blanche` lets Claude Code install ad-hoc packages and run shell
+    commands (Bash/Read/Write/Edit). When False, the toolset is restricted.
+    `use_nano_banana` injects the Nano Banana / Gemini Image instruction
+    into the system prompt and (if carte_blanche is False) keeps Bash
+    enabled so Claude can call scripts/gen_image.py.
+
+    Both `carte_blanche` and `use_nano_banana` are ignored when the
+    resolved backend is the Anthropic API (which has no tool access).
     """
+    suffix = f"effort={effort}, carte_blanche={carte_blanche}, use_nano_banana={use_nano_banana}"
     if prefer == "code":
         if not claude_code_available():
             raise RuntimeError(
@@ -362,16 +444,24 @@ def get_llm(prefer: str = "auto", *, effort: str = "medium") -> LLM:
                 "  - Install Claude Code from https://claude.com/code if you have a subscription.\n"
                 "  - Otherwise use `--llm api` (needs ANTHROPIC_API_KEY)."
             )
-        logger.info("LLM: using Claude Code CLI (effort=%s).", effort)
-        return ClaudeCodeCLI(effort=effort)
+        logger.info("LLM: using Claude Code CLI (%s).", suffix)
+        return ClaudeCodeCLI(
+            effort=effort,
+            carte_blanche=carte_blanche,
+            use_nano_banana=use_nano_banana,
+        )
     if prefer == "api":
         logger.info("LLM: using Anthropic API (forced via --llm api).")
         return AnthropicAPI()
     if prefer == "auto":
         if claude_code_available():
             try:
-                client = ClaudeCodeCLI(effort=effort)
-                logger.info("LLM: Claude Code CLI detected (effort=%s).", effort)
+                client = ClaudeCodeCLI(
+                    effort=effort,
+                    carte_blanche=carte_blanche,
+                    use_nano_banana=use_nano_banana,
+                )
+                logger.info("LLM: Claude Code CLI detected (%s).", suffix)
                 return client
             except Exception as exc:
                 logger.warning("Claude Code CLI present but failed to init: %s", exc)

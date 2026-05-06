@@ -79,6 +79,8 @@ def _cmd_generate(args: argparse.Namespace) -> int:
             final_critique_enabled=not args.no_final_critique,
             critique_threshold=args.critique_threshold,
             effort=args.effort,
+            carte_blanche=not args.no_carte_blanche,
+            use_nano_banana=args.use_nano_banana,
         )
     except Exception as exc:
         print(f"Generation failed: {exc}", file=sys.stderr)
@@ -107,6 +109,8 @@ def _cmd_generate_pdf(args: argparse.Namespace) -> int:
             final_critique_enabled=not args.no_final_critique,
             critique_threshold=args.critique_threshold,
             effort=args.effort,
+            carte_blanche=not args.no_carte_blanche,
+            use_nano_banana=args.use_nano_banana,
         )
     except Exception as exc:
         print(f"PDF generation failed: {exc}", file=sys.stderr)
@@ -209,6 +213,22 @@ def main() -> int:
             help="Claude Code reasoning depth. medium (default) is balanced. "
             "max = deepest reasoning, ~3-5x slower and more expensive. "
             "low = drafts. Ignored when --llm api.",
+        )
+        p.add_argument(
+            "--no-carte-blanche",
+            action="store_true",
+            help="Disable Claude Code's full toolset (Bash/Write/Edit). "
+            "When passed, Claude is restricted to Read-only — it can still "
+            "write the deck source code but cannot install packages or run "
+            "shell commands on your machine. Carte blanche is ON by default.",
+        )
+        p.add_argument(
+            "--use-nano-banana",
+            action="store_true",
+            help="Enable image generation via Google Gemini Nano Banana "
+            "(scripts/gen_image.py). Requires a saved Gemini API key. "
+            "When ON, Claude is encouraged to generate diagrams, hero "
+            "images, and stylized headers when the deck content benefits.",
         )
 
     p_gen = sub.add_parser(

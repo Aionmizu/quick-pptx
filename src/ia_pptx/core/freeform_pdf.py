@@ -225,6 +225,8 @@ def freeform_pdf_generate(
     final_critique_enabled: bool = True,
     critique_threshold: float = 70.0,
     effort: str = "medium",
+    carte_blanche: bool = True,
+    use_nano_banana: bool = False,
 ) -> FreeformPdfResult:
     """Generate a PDF deck via the freeform Claude-writes-HTML pipeline.
 
@@ -232,6 +234,11 @@ def freeform_pdf_generate(
     `plan_critic_enabled` runs an adversarial pre-flight review.
     `final_critique_enabled` scores each slide on a 10-atom rubric and runs
     one revise pass if the deck score is below `critique_threshold`.
+    `carte_blanche` lets Claude Code install ad-hoc packages and run
+    shell commands; restrict to a Read-only toolset when False.
+    `use_nano_banana` enables image generation via scripts/gen_image.py
+    (requires a Gemini API key; works alongside or independently of
+    carte_blanche).
     """
 
     def _emit(msg: str) -> None:
@@ -242,8 +249,20 @@ def freeform_pdf_generate(
             except Exception:
                 pass
 
-    llm = get_llm(prefer=llm_pref, effort=effort)
-    _emit(f"LLM backend: {llm.name} (effort={effort})")
+    llm = get_llm(
+        prefer=llm_pref,
+        effort=effort,
+        carte_blanche=carte_blanche,
+        use_nano_banana=use_nano_banana,
+    )
+    flags = ", ".join(
+        (
+            f"effort={effort}",
+            "carte-blanche=on" if carte_blanche else "carte-blanche=off",
+            "nano-banana=on" if use_nano_banana else "nano-banana=off",
+        )
+    )
+    _emit(f"LLM backend: {llm.name} ({flags})")
 
     if not style or style.lower() == "auto":
         _emit("Picking best-fitting theme via LLM…")

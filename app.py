@@ -442,21 +442,68 @@ with st.expander("LLM backend", expanded=False):
             "Use it for final decks, not exploration."
         )
 
+    st.markdown("---")
+    st.markdown("**Capabilities**")
+
+    carte_blanche = st.checkbox(
+        "🛠 Carte blanche — let Claude Code install ad-hoc packages and run shell commands",
+        value=True,
+        help=(
+            "When ON (default), Claude can install npm/pip packages, run lint "
+            "and tests, write helper files. Required for advanced layouts that "
+            "need ad-hoc tooling. When OFF, the toolset is restricted: Claude "
+            "can still write the deck source code but cannot install anything "
+            "or run scripts on your machine. Disable if you'd rather not give "
+            "an LLM execution permission on your system."
+        ),
+    )
+
+    use_nano_banana = st.checkbox(
+        "🍌 Use Nano Banana — let Claude generate images via Google Gemini",
+        value=False,
+        help=(
+            "When ON, Claude can call `scripts/gen_image.py` (Nano Banana 2 / "
+            "Pro / 2.5) to generate diagrams, hero images, stylized headers, "
+            "or icons whenever the deck content benefits. You can leave the "
+            "model decide, or guide it explicitly in your prompt "
+            "(e.g. 'include photos of cats', 'add a water-cycle diagram'). "
+            "Requires a Gemini API key in Settings. Each image costs ~$0.02–0.04 "
+            "(Nano Banana 2 at 1K) up to ~$0.10–0.15 (Pro at 4K)."
+        ),
+    )
+    if use_nano_banana and not GEMINI_KEY:
+        st.error(
+            "❌  Nano Banana is enabled but no Gemini API key is saved. "
+            "Open the **🔑 Settings** panel above and paste your key, then refresh."
+        )
+    if use_nano_banana and not carte_blanche:
+        st.info(
+            "ℹ️  Nano Banana needs Bash to run `gen_image.py`, so when "
+            "carte blanche is OFF the toolset will be narrowed to **Bash + Read** "
+            "(no install, no edit) — just enough to call the helper."
+        )
+
     # Detection status — surface clearly so the user knows what will run.
     cc_present = claude_code_available()
     if cc_present:
-        st.success(
-            "✅  Claude Code CLI detected on PATH. "
-            "Auto / `code` will route through your subscription with `--effort max` "
-            "and full tools (Bash, Read, Write, Edit) so the model can install npm/pip "
-            "packages it needs and clean them up afterward."
-        )
+        if carte_blanche:
+            st.success(
+                "✅  Claude Code CLI detected on PATH — full toolset enabled "
+                "(Bash, Read, Write, Edit)."
+            )
+        else:
+            scope = "Bash + Read" if use_nano_banana else "Read-only"
+            st.success(
+                f"✅  Claude Code CLI detected on PATH — toolset narrowed to "
+                f"**{scope}** because carte blanche is disabled."
+            )
     else:
         st.info(
             "ℹ️  Claude Code CLI not detected on PATH. "
-            "Auto will fall back to the Anthropic API. "
-            "If you wanted the subscription path, install Claude Code from "
-            "[claude.com/code](https://claude.com/code) and refresh."
+            "Auto will fall back to the Anthropic API (no tool access — Nano "
+            "Banana and carte blanche are ignored on the API path). "
+            "Install Claude Code from [claude.com/code](https://claude.com/code) "
+            "if you want the subscription path."
         )
     if llm_pref == "code" and not cc_present:
         st.error(
@@ -521,6 +568,8 @@ def _start_worker(*, kind: str) -> None:
         "final_critique_enabled": final_critique_enabled,
         "critique_threshold": float(critique_threshold),
         "effort": effort_level,
+        "carte_blanche": carte_blanche,
+        "use_nano_banana": use_nano_banana,
     }
 
     def _progress(msg: str) -> None:
