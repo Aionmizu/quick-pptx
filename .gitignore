@@ -18,6 +18,16 @@ id_dsa*
 .netrc
 
 # ─────────────────────────────────────────────────────────────────────
+# Local Claude Code state — user-specific skills and permissions.
+# `.claude/settings.local.json` carries the user's per-prompt approval
+# history; `.claude/skills/` carries vendored Claude Code skills that
+# are user-installed, NOT project deliverables (the project's own skill
+# bundle lives at `skills/ia-pptx/`).
+# ─────────────────────────────────────────────────────────────────────
+.claude/skills/
+.claude/settings.local.json
+
+# ─────────────────────────────────────────────────────────────────────
 # Python
 # ─────────────────────────────────────────────────────────────────────
 __pycache__/
