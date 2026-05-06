@@ -23,8 +23,11 @@ DIST_PATH = DIST_DIR / f"{BUNDLE_NAME}.zip"
 # Files and directories included in the bundle, with their archive paths.
 INCLUDES: list[tuple[Path, str]] = [
     (REPO_ROOT / "skills" / "ia-pptx" / "SKILL.md", "SKILL.md"),
-    (REPO_ROOT / "skills" / "ia-pptx" / "scripts" / "generate.py", "scripts/generate.py"),
+    # SKILL.md instructs Claude to run `PYTHONPATH=<bundle>/src python3 -m
+    # ia_pptx generate ...` — we ship the package source under src/ so the
+    # canonical CLI works without any wrapper script.
     (REPO_ROOT / "scripts" / "freeform_helpers.js", "scripts/freeform_helpers.js"),
+    (REPO_ROOT / "scripts" / "gen_image.py", "scripts/gen_image.py"),
     (REPO_ROOT / "package.json", "package.json"),
     (REPO_ROOT / "package-lock.json", "package-lock.json"),
     (REPO_ROOT / "LICENSE", "LICENSE"),

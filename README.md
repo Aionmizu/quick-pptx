@@ -1,6 +1,6 @@
 # quick-pptx
 
-> **Editorial-grade decks via Claude + visual QA loop.** Claude writes the deck source code directly (pptxgenjs JS for editable `.pptx` or HTML/CSS for publication-quality `.pdf`). A vision pass renders each slide, spots rendering bugs, and asks Claude to revise. A 10-atom critique then scores typography, hierarchy, and information density. No fixed templates. 67 hand-curated themes drawn from `ui-ux-pro-max`.
+> **Editorial-grade decks via Claude + visual QA loop.** Claude writes the deck source code directly (pptxgenjs JS for editable `.pptx` or HTML/CSS for publication-quality `.pdf`). A vision pass renders each slide, spots rendering bugs, and asks Claude to revise. A 10-atom critique then scores typography, hierarchy, and information density. **No fixed templates. 67 hand-curated themes** (palette + Google Fonts pairing + composition mood) drawn from the vendored `ui-ux-pro-max` library.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
@@ -65,15 +65,23 @@ pip install -e ".[dev]"
 npm install
 ```
 
-### 3. Install fonts (one-time, ≈ 30 sec)
+### 3. Install fonts (one-time, ≈ 1–3 min)
 
-The 20 style presets reference 36 Google Fonts families. WeasyPrint fetches them via `@import` automatically, but **LibreOffice needs them on disk** or it falls back to generic substitutes and your `.pptx` renders with the wrong typography.
+The 67 themes reference ~40 Google Fonts families. WeasyPrint fetches them via `@import` automatically, but **LibreOffice needs them on disk** or it falls back to generic substitutes and your `.pptx` renders with the wrong typography.
 
 ```bash
 python3 scripts/install_fonts.py
 ```
 
-That downloads all preset fonts as TTFs into `~/.local/share/fonts/quick-pptx/` and refreshes the system font cache. Idempotent — safe to re-run.
+The script branches on your OS and writes TTFs into the right user-fonts directory:
+
+| OS | Path |
+|---|---|
+| Linux / *BSD | `~/.local/share/fonts/quick-pptx/` |
+| macOS | `~/Library/Fonts/quick-pptx/` |
+| Windows | `%LOCALAPPDATA%\Microsoft\Windows\Fonts\quick-pptx\` |
+
+On Linux it also runs `fc-cache -f`. macOS and Windows pick up new fonts automatically; restart LibreOffice if it was already open. Idempotent — safe to re-run.
 
 ### 4. Pick an LLM backend (one of the two)
 
@@ -137,6 +145,13 @@ Useful flags:
 | `--length <N>` | model picks | Target slide count. |
 | `--max-iterations <N>` | 3 | Visual QA loop budget. |
 | `--llm {auto,code,api}` | auto | Force a backend. |
+| `--effort {low,medium,high,xhigh,max}` | `medium` | Claude Code reasoning depth. `medium` is balanced; `max` is best quality but ~3-5× the cost. Ignored on `--llm api`. |
+| `--no-carte-blanche` | (off) | **Carte blanche is ON by default** — when Claude Code is the backend, it has Bash/Read/Write/Edit access in a tmp cwd so it can install ad-hoc npm/pip packages. Pass this flag to narrow the toolset to **Read-only** if you'd rather not give an LLM execution permission on your machine. |
+| `--use-nano-banana` | off | Enable Google Gemini image generation. Claude is told to call `scripts/gen_image.py` for diagrams / hero images / icons when the deck content benefits. Requires a saved Gemini API key. **Adds $0.02-0.15 per generated image and ~30-90 s of latency per call.** |
+| `--no-plan-critic` | (off) | Skip the adversarial pre-flight prompt review. |
+| `--no-final-critique` | (off) | Skip the 10-atom rubric scoring pass. |
+| `--critique-threshold <N>` | 70 | Deck-level critique pass threshold. |
+| `--auto-revise-on-critique-fail` | off | After a critique fail, automatically run ONE revise + re-critique pass (adds 5-25 min). Default is to ship as-is and let the user decide via the Streamlit "Retry" button. |
 
 After a run, the output folder contains:
 - `<name>.pptx` or `<name>.pdf` — your deck
@@ -194,16 +209,11 @@ app.py                  # Streamlit web app
 
 ## Status
 
-v0.2 — pivoted from a templated 4-layout pipeline to the freeform + visual QA architecture, then layered on:
+**v0.8.0 — public beta.** Pipelines are stable; the four-piece review architecture (plan critic → visual QA → final critique → on-demand revise) is in place. Visual quality is per-deck, but the rubric catches the worst-offender patterns (paragraph slides, repeated section dividers, decorative-only images). The full CHANGELOG entry for 0.8.0 lists everything that landed since the v0.2 architectural pivot.
 
-- 67 ui-ux-pro-max themes with auto-pick (LLM picks the best fit for the prompt)
-- Plan critic (pre-flight adversarial review) + final critique (10-atom rubric, ONE revise pass below threshold)
-- Nano Banana image generation (Gemini, optional)
-- Configurable Claude Code `--effort` (low / medium / high / xhigh / max)
-- Settings tab in Streamlit for both API keys + Claude Code detection status
-- Cancel button + live event log + per-slide critique scores
+Linux is the primary surface; macOS works; Windows is untested. Test coverage is light (auth + filename helpers cover the pure-Python surface; the freeform pipelines are exercised manually via Streamlit). Public API may shift before `1.0`.
 
-See `documentations/PIVOT-2026-05.md` for the architectural pivot rationale.
+See `CHANGELOG.md` for the full v0.8.0 release notes and `documentations/PIVOT-2026-05.md` for the v0.1 → v0.2 architectural pivot rationale.
 
 Roadmap:
 - Image strategy via Unsplash / Pexels APIs (full-bleed photo backgrounds).

@@ -136,9 +136,10 @@ system: `brew install libreoffice poppler` (macOS) or
   detect it and route through your subscription.
 - **Anthropic API key** — paste it in the **🔑 Settings** panel below.
 
-**Costs (rough)** — `--effort max` (default) is ~$3–6 per deck via API,
-slightly more on Claude Code. Drop to `--effort medium` for fast drafts
-at ~$1–2.
+**Costs (rough)** — at the default `--effort medium`, a 10-slide deck
+runs ~$1–2 via the Anthropic API. Bumping to `--effort max` gives a
+sharper deck but ~3-5× the cost ($5-15). Nano Banana adds $0.02-0.15
+per generated image.
         """,
         unsafe_allow_html=False,
     )

@@ -167,46 +167,37 @@ description: "Claude writes deck source code (pptxgenjs / HTML+CSS), a vision pa
 
 <hr class="qp-rule" />
 
-<h2 class="qp-section">Five themes from the library</h2>
-<p class="qp-section-sub">Each generation picks one of 67 themes — palette, typography pairing, composition mood — drawn from the vendored <code>ui-ux-pro-max</code> library. <code>--style auto</code> lets a small LLM call pick the best fit for your prompt.</p>
+<h2 class="qp-section">67 themes — palette, typography, mood</h2>
+<p class="qp-section-sub">Each generation picks one of 67 themes drawn from the vendored <code>ui-ux-pro-max</code> library. <code>--style auto</code> lets a small LLM call pick the best fit for your prompt; or pin a specific style to lock the visual direction. A representative slice:</p>
 
-<div class="qp-grid">
-  <a class="qp-card" href="https://github.com/Aionmizu/quick-pptx#themes">
-    <img src="assets/_thumbs/editorial-grid-magazine-two-up.png" alt="Editorial Grid Magazine theme example">
-    <div class="qp-card-meta">
-      <div class="qp-card-eyebrow">Theme</div>
-      <h3 class="qp-card-title">Editorial Grid Magazine</h3>
-    </div>
-  </a>
-  <a class="qp-card" href="https://github.com/Aionmizu/quick-pptx#themes">
-    <img src="assets/_thumbs/minimalism-swiss-style-single-column.png" alt="Minimalism Swiss Style theme">
-    <div class="qp-card-meta">
-      <div class="qp-card-eyebrow">Theme</div>
-      <h3 class="qp-card-title">Minimalism Swiss Style</h3>
-    </div>
-  </a>
-  <a class="qp-card" href="https://github.com/Aionmizu/quick-pptx#themes">
-    <img src="assets/_thumbs/brutalism-asymmetric.png" alt="Brutalism theme">
-    <div class="qp-card-meta">
-      <div class="qp-card-eyebrow">Theme</div>
-      <h3 class="qp-card-title">Brutalism Asymmetric</h3>
-    </div>
-  </a>
-  <a class="qp-card" href="https://github.com/Aionmizu/quick-pptx#themes">
-    <img src="assets/_thumbs/bento-box-grid-bento.png" alt="Bento Box Grid theme">
-    <div class="qp-card-meta">
-      <div class="qp-card-eyebrow">Theme</div>
-      <h3 class="qp-card-title">Bento Box Grid</h3>
-    </div>
-  </a>
-  <a class="qp-card" href="https://github.com/Aionmizu/quick-pptx#themes">
-    <img src="assets/_thumbs/flat-design-single-column.png" alt="Flat Design theme">
-    <div class="qp-card-meta">
-      <div class="qp-card-eyebrow">Theme</div>
-      <h3 class="qp-card-title">Flat Design</h3>
-    </div>
-  </a>
+<div class="qp-feature-grid">
+  <div class="qp-feature">
+    <h3>Editorial Grid Magazine</h3>
+    <p>Display serif headlines, oversized numerals, real grids. Best for academic / archival decks.</p>
+  </div>
+  <div class="qp-feature">
+    <h3>Minimalism Swiss Style</h3>
+    <p>Helvetica/Inter, mathematical spacing, single accent. Best for tech briefs and one-takeaway decks.</p>
+  </div>
+  <div class="qp-feature">
+    <h3>Brutalism Asymmetric</h3>
+    <p>Raw type, full-bleed color blocks, intentional ugliness. Best for opinionated manifestos.</p>
+  </div>
+  <div class="qp-feature">
+    <h3>Bento Box Grid</h3>
+    <p>Multi-tile compositions, varied size/weight per cell. Best for dashboards and stat-heavy decks.</p>
+  </div>
+  <div class="qp-feature">
+    <h3>Vintage Analog</h3>
+    <p>Slab serif + warm palette + grain. Best for historical, narrative, or print-feel decks.</p>
+  </div>
+  <div class="qp-feature">
+    <h3>Cyberpunk</h3>
+    <p>Neon accents, futuristic mono, high-contrast dark. Best for product launches and tech demos.</p>
+  </div>
 </div>
+
+<p class="qp-section-sub" style="margin-top:1.5rem;"><em>Want to see what they actually render? Run <code>python3 -m ia_pptx list-styles</code> for the full 67. Live screenshots are coming as the public beta gets real-world use — until then, your own generation is the best preview.</em></p>
 
 <hr class="qp-rule" />
 
