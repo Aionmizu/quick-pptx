@@ -177,8 +177,11 @@ with st.expander(
         type="password",
         placeholder=("AIzaSy... — leave blank to keep existing" if GEMINI_KEY else "AIzaSy..."),
         help=(
-            "Optional. Used by Claude (via the carte-blanche path) to generate explanatory "
-            "diagrams and illustrations during deck generation. "
+            "Optional. Used by Claude (via the carte-blanche path) to generate "
+            "explanatory diagrams, stylized headers, and infographics during "
+            "deck generation. The same key works for every Nano Banana model "
+            "(Nano Banana 2 / Pro / 2.5) — the script picks the right one "
+            "per request. "
             f"{'A key is currently saved.' if GEMINI_KEY else 'No key saved yet.'} "
             f"[Get one from Google AI Studio →]({GEMINI_KEYS_URL})"
         ),

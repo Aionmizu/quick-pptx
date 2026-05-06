@@ -37,12 +37,21 @@ ia-pptx = "ia_pptx.__main__:main"
 streamlit = [
   "streamlit>=1.40",
 ]
+gemini = [
+  # Official SDK for the Nano Banana / Gemini Image API. Optional —
+  # scripts/gen_image.py also has a urllib REST fallback that needs
+  # nothing beyond the stdlib, so a Gemini key alone is enough to call
+  # the API; the SDK just gives cleaner error handling and proper
+  # thought-signature support for multi-turn workflows.
+  "google-genai>=1.0",
+  "Pillow>=10.0",
+]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",
   "ruff>=0.6",
   "mypy>=1.10",
-  "ia-pptx-generator[streamlit]",
+  "ia-pptx-generator[streamlit,gemini]",
 ]
 
 [project.urls]

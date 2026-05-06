@@ -135,33 +135,56 @@ WHAT YOU MAY DO:
   - Run shell commands to inspect, test, lint your generated code before
     returning it.
 
-IMAGE GENERATION (Nano Banana / Gemini 2.5 Flash Image):
+IMAGE GENERATION (Nano Banana family — Gemini 3.1/3 Image):
   When the deck would benefit from an explanatory diagram, illustration, or
-  background graphic that a stock-photo search wouldn't satisfy, use:
+  background graphic that a stock-photo search wouldn't satisfy, call:
 
     python3 {gen_image_path} "<prompt>" --output {tmp_dir}/img-NN.png
 
   Replace {tmp_dir} with whatever shell tempdir convention is appropriate
   for the host (`$TMPDIR` / `$TEMP` / `%TEMP%`). Use absolute paths.
 
-  Examples of legitimate uses:
-    - "diagram of the water cycle: evaporation, condensation, precipitation,
-      run-off, with subtle hand-drawn lines and earth-tone palette"
-    - "minimalist line illustration of a neural network with 3 layers"
-    - "abstract geometric texture in muted ink/rust tones, 1920×1080"
+  USEFUL FLAGS (all optional):
+    --model nano-banana-2 (default — gemini-3.1-flash-image-preview)
+      | nano-banana-pro (gemini-3-pro-image-preview, professional asset
+                         production, real-world Google Search grounding,
+                         supports up to 4K)
+      | nano-banana (gemini-2.5-flash-image, fastest/cheapest, 1024px only)
+    --aspect-ratio 16:9   (or 1:1 / 9:16 / 21:9 / 4:5 / 5:4 / 3:4 / 4:3 /
+                           2:3 / 3:2 / 1:4 / 4:1 / 1:8 / 8:1 — last four
+                           need nano-banana-2)
+    --resolution 1K       (default; 2K and 4K supported on -2 and -pro;
+                           512 only on -2; -original ignores this flag)
+    --grounding none      (default) | web | image (-2 only) | both (-2 only)
+    --thinking minimal    (default) | high (-2 only — slower, deeper
+                                            composition reasoning)
 
-  Then embed in pptxgenjs:
-    slide.addImage({{ path: "<absolute path>", x: ..., y: ..., w: ..., h: ... }})
-  Or in HTML:
-    <img src="file://<absolute path>" alt="...">
+  EXAMPLES:
+    --model nano-banana-2 --aspect-ratio 16:9 --resolution 2K \\
+        "A minimalist line diagram of the water cycle: evaporation,
+         condensation, precipitation, run-off; earth-tone palette."
 
-  Use sparingly — only when the image carries information. A pretty
-  background can hurt the distracted-person test if it competes with the
-  message. The final critique pass WILL flag images that don't serve the
-  slide's takeaway.
+    --model nano-banana-pro --aspect-ratio 4:5 --resolution 4K \\
+        "Stylized magazine cover for a deck on the French Revolution,
+         large bold serif title, archival ink palette."
 
-  If the helper exits non-zero (no API key, network error), proceed without
-  the image — do not block the deck.
+    --model nano-banana-2 --grounding web --aspect-ratio 16:9 \\
+        "A clean, modern weather chart for the next 5 days in Paris."
+
+  EMBEDDING:
+    pptxgenjs:  slide.addImage({{ path: "<absolute path>", x: ..., y: ..., w: ..., h: ... }})
+    HTML:       <img src="file://<absolute path>" alt="...">
+
+  RULES:
+    - Use sparingly. Each generated image must CARRY information (a diagram,
+      a stylized header, a real chart). A decorative background almost
+      always loses the distracted-person test and the final critique pass
+      will flag it.
+    - Generate first when the asset is text-heavy (titles in image, charts,
+      magazine layout) — use nano-banana-pro at 2K or 4K.
+    - For simple diagrams or icons, nano-banana-2 at 1K is faster + cheaper.
+    - If the helper exits non-zero (no API key, network error, etc.),
+      proceed without the image — do not block the deck.
 
 CLEANUP DISCIPLINE (NON-NEGOTIABLE):
   - You MUST track every package you install in this run. At the end, remove
