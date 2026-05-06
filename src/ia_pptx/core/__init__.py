@@ -13,8 +13,16 @@ from ia_pptx.core.exceptions import (
     InvalidPrompt,
     RenderFailed,
 )
-from ia_pptx.core.freeform import FreeformResult, freeform_generate
-from ia_pptx.core.freeform_pdf import FreeformPdfResult, freeform_pdf_generate
+from ia_pptx.core.freeform import (
+    FreeformResult,
+    freeform_generate,
+    freeform_revise_on_critique,
+)
+from ia_pptx.core.freeform_pdf import (
+    FreeformPdfResult,
+    freeform_pdf_generate,
+    freeform_pdf_revise_on_critique,
+)
 
 __all__ = [
     "FreeformPdfResult",
@@ -24,4 +32,6 @@ __all__ = [
     "RenderFailed",
     "freeform_generate",
     "freeform_pdf_generate",
+    "freeform_pdf_revise_on_critique",
+    "freeform_revise_on_critique",
 ]

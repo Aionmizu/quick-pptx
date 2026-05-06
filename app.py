@@ -603,6 +603,75 @@ def _start_worker(*, kind: str) -> None:
     thread.start()
 
 
+def _start_retry_worker() -> None:
+    """Run ONE critique-driven revise pass on the existing deck.
+
+    Replays the same threading scaffolding as `_start_worker` but invokes
+    `freeform_revise_on_critique` / `freeform_pdf_revise_on_critique` instead
+    of regenerating from scratch.
+    """
+    from ia_pptx.core import (  # local import — only needed on retry click
+        freeform_pdf_revise_on_critique,
+        freeform_revise_on_critique,
+    )
+
+    kind = ss.get("last_kind") or "pptx"
+    output_path = Path(ss.last_output_path)
+    final_artifact = ss.last_final_artifact
+    critique = ss.last_critique
+
+    cancel_event = threading.Event()
+    ss.cancel_event = cancel_event
+    ss.worker_events = []
+    ss.worker_result = None
+    ss.worker_error = None
+    ss.worker_cancelled = False
+    ss.worker_running = True
+
+    def _progress(msg: str) -> None:
+        if cancel_event.is_set():
+            raise _Cancelled("user cancelled")
+        ss.worker_events.append(msg)
+
+    def _run() -> None:
+        try:
+            if kind == "pptx":
+                result = freeform_revise_on_critique(
+                    output_path=output_path,
+                    final_script=final_artifact,
+                    critique=critique,
+                    llm_pref=llm_pref,
+                    progress=_progress,
+                    effort=effort_level,
+                    carte_blanche=carte_blanche,
+                    use_nano_banana=use_nano_banana,
+                    critique_threshold=float(critique_threshold),
+                )
+            else:
+                result = freeform_pdf_revise_on_critique(
+                    output_path=output_path,
+                    final_html=final_artifact,
+                    critique=critique,
+                    llm_pref=llm_pref,
+                    progress=_progress,
+                    effort=effort_level,
+                    carte_blanche=carte_blanche,
+                    use_nano_banana=use_nano_banana,
+                    critique_threshold=float(critique_threshold),
+                )
+            ss.worker_result = result
+        except _Cancelled:
+            ss.worker_cancelled = True
+        except Exception as exc:
+            ss.worker_error = exc
+        finally:
+            ss.worker_running = False
+
+    thread = threading.Thread(target=_run, daemon=True)
+    add_script_run_ctx(thread)
+    thread.start()
+
+
 # ── Generate-button row + Cancel button (shown only while running) ──────────
 
 input_is_blank = not prompt or not prompt.strip()
@@ -679,6 +748,13 @@ if ss.worker_result is not None:
     final_path = result.pdf_path if hasattr(result, "pdf_path") else result.pptx_path
     ss.last_output_path = str(final_path)
     ss.last_jpgs = [str(p) for p in result.jpg_paths]
+    # Stash everything the "Retry — improve" button will need to re-run the
+    # critique-driven revise pass without rebuilding the deck from scratch.
+    ss.last_kind = "pdf" if hasattr(result, "pdf_path") else "pptx"
+    ss.last_final_artifact = (
+        result.final_html if hasattr(result, "final_html") else result.final_script
+    )
+    ss.last_critique = getattr(result, "critique", None)
     st.success(f"Done in {result.iterations} iteration(s) · {len(last_bugs)} bug(s) remaining")
 
     # Plan critic review (pre-flight)
@@ -716,7 +792,8 @@ if ss.worker_result is not None:
             if critique.repeated_signatures:
                 st.warning(
                     "3+ slides share the same layout signature — the deck "
-                    "feels templated. The revise pass should have addressed this."
+                    "feels templated. Use the 🔁 Retry button to ask the LLM "
+                    "to vary the compositions."
                 )
             div_tic, div_sig = critique.divider_tic
             if div_tic:
@@ -736,6 +813,31 @@ if ss.worker_result is not None:
                 )
                 for atom in failed:
                     st.write(f"  - ❌ `{atom.name}` — {atom.evidence}")
+
+        # If critique failed AND we have everything we need to rerun
+        # the revise pass on the existing deck, surface a Retry button.
+        if not passed and ss.get("last_final_artifact") and ss.get("last_critique"):
+            st.markdown("##### What would you like to do?")
+            col_retry, col_keep = st.columns(2)
+            with col_retry:
+                if st.button(
+                    "🔁 Retry — improve below threshold",
+                    type="primary",
+                    use_container_width=True,
+                    help=(
+                        "Run ONE revise pass on the existing deck, driven by the "
+                        "failed atoms above. Re-renders, re-critiques. Adds "
+                        "5–25 min depending on effort level."
+                    ),
+                ):
+                    _start_retry_worker()
+                    st.rerun()
+            with col_keep:
+                st.button(
+                    "✅ Keep as-is",
+                    use_container_width=True,
+                    help="Ship this deck. Critique flags surfaced but accepted.",
+                )
 
     if last_bugs:
         with st.expander(f"⚠️  {len(last_bugs)} unfixed visual-QA bug(s)"):
@@ -778,17 +880,49 @@ if last:
     jpgs = st.session_state.get("last_jpgs") or []
     if jpgs:
         st.markdown("### Slide preview")
-        cols_per_row = 2
-        for row_start in range(0, len(jpgs), cols_per_row):
-            row = st.columns(cols_per_row)
-            for offset, col in enumerate(row):
-                idx = row_start + offset
-                if idx >= len(jpgs):
-                    continue
-                jpg_path = Path(jpgs[idx])
-                if jpg_path.is_file():
-                    col.image(
-                        str(jpg_path),
-                        caption=f"Slide {idx + 1:02d}",
-                        use_container_width=True,
-                    )
+        n = len(jpgs)
+        # Persist the viewer index across reruns so prev/next + slider work.
+        if "viewer_idx" not in st.session_state:
+            st.session_state.viewer_idx = 0
+        # Clamp in case the deck shrank between runs.
+        if st.session_state.viewer_idx >= n:
+            st.session_state.viewer_idx = 0
+
+        col_prev, col_label, col_next = st.columns([1, 4, 1])
+        with col_prev:
+            if st.button("◀", use_container_width=True, disabled=st.session_state.viewer_idx == 0):
+                st.session_state.viewer_idx = max(0, st.session_state.viewer_idx - 1)
+                st.rerun()
+        with col_label:
+            st.markdown(
+                f"<div style='text-align:center; padding-top:0.4rem; "
+                f"font-variant-numeric: tabular-nums;'>"
+                f"<strong>Slide {st.session_state.viewer_idx + 1:02d}</strong> "
+                f"<span style='color:var(--text-secondary,#666);'>/ {n:02d}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        with col_next:
+            if st.button(
+                "▶", use_container_width=True, disabled=st.session_state.viewer_idx >= n - 1
+            ):
+                st.session_state.viewer_idx = min(n - 1, st.session_state.viewer_idx + 1)
+                st.rerun()
+
+        # Slider for direct jumps — only show when the deck has more than 4
+        # slides; below that the prev/next buttons are enough.
+        if n > 4:
+            picked = st.slider(
+                "Jump to slide",
+                min_value=1,
+                max_value=n,
+                value=st.session_state.viewer_idx + 1,
+                label_visibility="collapsed",
+            )
+            if picked - 1 != st.session_state.viewer_idx:
+                st.session_state.viewer_idx = picked - 1
+                st.rerun()
+
+        current = Path(jpgs[st.session_state.viewer_idx])
+        if current.is_file():
+            st.image(str(current), use_container_width=True)

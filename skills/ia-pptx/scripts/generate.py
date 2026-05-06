@@ -79,7 +79,12 @@ def main() -> int:
         "--critique-threshold",
         type=float,
         default=70.0,
-        help="Deck-level critique threshold (0–100, default 70). Below → 1 revise pass.",
+        help="Deck-level critique threshold (0–100, default 70).",
+    )
+    parser.add_argument(
+        "--auto-revise-on-critique-fail",
+        action="store_true",
+        help="Auto-run ONE revise pass on critique fail (off by default).",
     )
     parser.add_argument(
         "--no-carte-blanche",
@@ -106,6 +111,7 @@ def main() -> int:
         "plan_critic_enabled": not args.no_plan_critic,
         "final_critique_enabled": not args.no_final_critique,
         "critique_threshold": args.critique_threshold,
+        "auto_revise_on_critique_fail": args.auto_revise_on_critique_fail,
         "carte_blanche": not args.no_carte_blanche,
         "use_nano_banana": args.use_nano_banana,
     }

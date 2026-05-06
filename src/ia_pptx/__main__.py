@@ -78,6 +78,7 @@ def _cmd_generate(args: argparse.Namespace) -> int:
             plan_critic_enabled=not args.no_plan_critic,
             final_critique_enabled=not args.no_final_critique,
             critique_threshold=args.critique_threshold,
+            auto_revise_on_critique_fail=args.auto_revise_on_critique_fail,
             effort=args.effort,
             carte_blanche=not args.no_carte_blanche,
             use_nano_banana=args.use_nano_banana,
@@ -108,6 +109,7 @@ def _cmd_generate_pdf(args: argparse.Namespace) -> int:
             plan_critic_enabled=not args.no_plan_critic,
             final_critique_enabled=not args.no_final_critique,
             critique_threshold=args.critique_threshold,
+            auto_revise_on_critique_fail=args.auto_revise_on_critique_fail,
             effort=args.effort,
             carte_blanche=not args.no_carte_blanche,
             use_nano_banana=args.use_nano_banana,
@@ -204,7 +206,15 @@ def main() -> int:
             "--critique-threshold",
             type=float,
             default=70.0,
-            help="Deck-level critique threshold (0–100, default 70). Below → 1 revise pass.",
+            help="Deck-level critique threshold (0–100, default 70).",
+        )
+        p.add_argument(
+            "--auto-revise-on-critique-fail",
+            action="store_true",
+            help="When the final critique scores below threshold, automatically "
+            "run ONE revise pass + re-critique. Off by default — without this "
+            "flag, the pipeline returns the deck as-is and surfaces the failed "
+            "atoms so the user can decide whether to retry. Adds 5–25 min when on.",
         )
         p.add_argument(
             "--effort",

@@ -258,6 +258,7 @@ def freeform_generate(
     plan_critic_enabled: bool = True,
     final_critique_enabled: bool = True,
     critique_threshold: float = 70.0,
+    auto_revise_on_critique_fail: bool = False,
     effort: str = "medium",
     carte_blanche: bool = True,
     use_nano_banana: bool = False,
@@ -429,7 +430,7 @@ def freeform_generate(
         _emit(f"Final critique — scoring {len(jpgs)} slide(s) on the 10-atom rubric…")
         final_critique = critique_deck(jpgs, llm, threshold=critique_threshold)
         _emit(final_critique.summary_line())
-        if not final_critique.passed:
+        if not final_critique.passed and auto_revise_on_critique_fail:
             critique_bugs = critique_revise_payload(final_critique)
             if critique_bugs:
                 _emit(
@@ -444,6 +445,12 @@ def freeform_generate(
                     _emit("Re-critiquing after revise…")
                     final_critique = critique_deck(jpgs, llm, threshold=critique_threshold)
                     _emit(final_critique.summary_line())
+        elif not final_critique.passed:
+            _emit(
+                "Critique below threshold — auto-revise disabled, returning the "
+                "deck as-is. Use the 'Retry — improve' button to run a single "
+                "revise pass on demand."
+            )
         # Persist the critique JSON next to the deck.
         critique_path = output_path.with_suffix(".critique.json")
         critique_path.write_text(
@@ -464,4 +471,87 @@ def freeform_generate(
     )
 
 
-__all__ = ["FreeformResult", "freeform_generate"]
+def freeform_revise_on_critique(
+    *,
+    output_path: Path,
+    final_script: str,
+    critique: DeckCritique,
+    llm_pref: str = "auto",
+    progress: ProgressFn | None = None,
+    effort: str = "medium",
+    carte_blanche: bool = True,
+    use_nano_banana: bool = False,
+    critique_threshold: float = 70.0,
+) -> FreeformResult:
+    """Run ONE revise pass on an already-generated deck, driven by a critique.
+
+    Used when the user opted not to auto-retry inside the main pipeline and
+    later clicks 'Retry — improve' in the UI: take the existing pptxgenjs
+    script + the critique findings, ask the LLM to fix them, re-run Node,
+    re-render JPGs, re-critique. Returns a fresh FreeformResult.
+    """
+
+    def _emit(msg: str) -> None:
+        logger.info(msg)
+        if progress is not None:
+            try:
+                progress(msg)
+            except Exception:
+                pass
+
+    output_path = output_path.resolve()
+    work_dir = output_path.parent
+    llm = get_llm(
+        prefer=llm_pref,
+        effort=effort,
+        carte_blanche=carte_blanche,
+        use_nano_banana=use_nano_banana,
+    )
+    _emit(f"LLM backend: {llm.name} (effort={effort})")
+
+    critique_bugs = critique_revise_payload(critique)
+    if not critique_bugs:
+        _emit("Nothing to revise — the critique flagged 0 atoms.")
+        return FreeformResult(
+            pptx_path=output_path,
+            jpg_paths=sorted(work_dir.glob("slide-*.jpg")),
+            iterations=0,
+            final_script=final_script,
+            bug_history=[],
+            critique=critique,
+        )
+
+    _emit(f"Revise pass — {len(critique_bugs)} critique finding(s) to address…")
+    revised = _revise_script(llm, final_script, critique_bugs)
+    ok, output = _write_and_run_node(revised, work_dir, output_path)
+    if not ok:
+        raise RuntimeError(f"Node failed during critique-driven revise: {output[:500]}")
+
+    _emit("Re-rendering JPGs…")
+    jpgs = _pptx_to_jpgs(output_path, work_dir)
+
+    _emit("Re-critiquing…")
+    new_critique = critique_deck(jpgs, llm, threshold=critique_threshold)
+    _emit(new_critique.summary_line())
+
+    critique_path = output_path.with_suffix(".critique.json")
+    critique_path.write_text(
+        json.dumps(critique_to_dict(new_critique), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    return FreeformResult(
+        pptx_path=output_path,
+        jpg_paths=jpgs,
+        iterations=1,
+        final_script=revised,
+        bug_history=[critique_bugs],
+        critique=new_critique,
+    )
+
+
+__all__ = [
+    "FreeformResult",
+    "freeform_generate",
+    "freeform_revise_on_critique",
+]
