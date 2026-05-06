@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Question / discussion
+    url: https://github.com/Aionmizu/quick-pptx/discussions
+    about: Open a Discussion thread instead of an issue. Faster for "how do I…?".
+  - name: 🔐 Security report
+    url: https://github.com/Aionmizu/quick-pptx/security/advisories/new
+    about: Privately disclose a security issue (carte-blanche / API-key leak / etc.).

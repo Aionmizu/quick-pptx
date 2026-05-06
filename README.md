@@ -1,8 +1,15 @@
 # quick-pptx
 
-**Editorial-grade decks via Claude + visual QA loop.** Claude writes the deck source code directly (pptxgenjs JS for editable `.pptx`, or HTML/CSS for publication-quality `.pdf`). A vision pass renders each slide to an image, spots rendering bugs, and asks Claude to revise. Bounded to 3 iterations. No fixed templates. 20 hand-curated style presets (palette + Google Fonts pairing) drawn from `ui-ux-pro-max`.
+> **Editorial-grade decks via Claude + visual QA loop.** Claude writes the deck source code directly (pptxgenjs JS for editable `.pptx` or HTML/CSS for publication-quality `.pdf`). A vision pass renders each slide, spots rendering bugs, and asks Claude to revise. A 10-atom critique then scores typography, hierarchy, and information density. No fixed templates. 67 hand-curated themes drawn from `ui-ux-pro-max`.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · No signup · No telemetry · Free forever
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python: 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![Status: beta](https://img.shields.io/badge/status-beta-orange.svg)](#status)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+No signup · No telemetry · BYO Anthropic + (optional) Gemini key
+
+> **⚠ Status — public beta (`v0.8.0`).** The pipelines are stable; the four-piece review architecture (plan critic → visual QA → final critique → on-demand revise) is in place. **Cross-platform install is best-effort on Linux, works on macOS, untested on Windows.** Test coverage is light (auth + filename helpers); the freeform pipelines are exercised manually via Streamlit. Public API may shift before `1.0`.
 
 ---
 
@@ -18,6 +25,17 @@ Most "AI deck" tools settle for "title + bullets, repeated 10×, with a corporat
 | `generate-pdf` | `.pdf` | HTML / CSS via WeasyPrint | ❌ | Highest (web fonts, gradients, transforms) |
 
 Both share: per-slide composition, 67 themes drawn from the vendored `ui-ux-pro-max` library, a 3-pass visual QA self-heal loop, plan critic + final critique, and the same LLM abstraction (Anthropic API **or** Claude Code CLI subprocess).
+
+## Costs (rough order of magnitude)
+
+| Path | `--effort medium` (default) | `--effort max` |
+|---|---|---|
+| Anthropic API | $1–2 / deck | $5–15 / deck |
+| Claude Code subscription | included quota | burns quota faster (~3-5×) |
+| Nano Banana 2 image | $0.02 (1K) | $0.04 (2K) |
+| Nano Banana Pro image | $0.05 (1K) | $0.10–0.15 (4K) |
+
+A 10-slide deck at default settings (no Nano Banana) typically lands in 4–8 minutes wall-clock and $1–2 of API spend. The Streamlit surface shows live cost ballparks when you select higher effort tiers.
 
 ---
 

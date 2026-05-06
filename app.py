@@ -755,6 +755,23 @@ if ss.worker_result is not None:
         result.final_html if hasattr(result, "final_html") else result.final_script
     )
     ss.last_critique = getattr(result, "critique", None)
+
+    # Seed an LLM-suggested filename slug from the original prompt, but only
+    # once per generated deck — the user can override in the rename input
+    # below, and we don't want a Streamlit rerun to wipe their edit.
+    if ss.get("last_slug_for_path") != str(final_path):
+        try:
+            from ia_pptx.core._llm import get_llm
+            from ia_pptx.core.filename import suggest_filename_via_llm
+
+            slug = suggest_filename_via_llm(prompt, get_llm(prefer="auto"))
+        except Exception:
+            from ia_pptx.core.filename import suggest_filename_local
+
+            slug = suggest_filename_local(prompt)
+        ss.suggested_slug = slug
+        ss.last_slug_for_path = str(final_path)
+
     st.success(f"Done in {result.iterations} iteration(s) · {len(last_bugs)} bug(s) remaining")
 
     # Plan critic review (pre-flight)
@@ -869,14 +886,36 @@ if last:
             if last_path.suffix.lower() == ".pdf"
             else "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         )
-        st.download_button(
-            label=f"Download {last_path.name}",
-            data=data,
-            file_name=last_path.name,
-            mime=mime,
-            type="primary",
-            use_container_width=True,
-        )
+
+        # Editable filename — seeded by the LLM-suggested slug, falls back
+        # to the on-disk name if the slug helper failed.
+        suggested = st.session_state.get("suggested_slug") or last_path.stem
+        ext = last_path.suffix
+        col_name, col_dl = st.columns([3, 2])
+        with col_name:
+            user_slug = st.text_input(
+                "Filename",
+                value=suggested,
+                help=(
+                    "AI-suggested from your prompt. Edit before downloading. "
+                    "The extension is added automatically."
+                ),
+                key="download_filename_input",
+            ).strip()
+        # Sanitize whatever the user typed so we don't ship a malformed name.
+        from ia_pptx.core.filename import _slugify
+
+        download_name = _slugify(user_slug or suggested) + ext
+        with col_dl:
+            st.markdown("<div style='padding-top:1.7rem;'></div>", unsafe_allow_html=True)
+            st.download_button(
+                label=f"⬇️  Download {download_name}",
+                data=data,
+                file_name=download_name,
+                mime=mime,
+                type="primary",
+                use_container_width=True,
+            )
     jpgs = st.session_state.get("last_jpgs") or []
     if jpgs:
         st.markdown("### Slide preview")

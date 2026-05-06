@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ia-pptx-generator"
-version = "0.2.0"
+version = "0.8.0"
 description = "Editorial-grade decks via Claude + visual QA loop. Claude writes the deck source code directly (pptxgenjs JS or HTML/CSS); a vision pass spots rendering bugs and asks Claude to revise."
 readme = "README.md"
 requires-python = ">=3.11"

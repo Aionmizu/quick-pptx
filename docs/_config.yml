@@ -1,0 +1,10 @@
+# Minimal Jekyll config so GitHub Pages renders docs/index.md.
+# Source: https://docs.github.com/pages
+title: quick-pptx
+description: Editorial-grade decks via Claude + visual QA loop.
+theme: jekyll-theme-cayman
+baseurl: ""
+url: "https://aionmizu.github.io/quick-pptx"
+exclude:
+  - assets/_thumbs/.gitkeep
+  - "*.md~"

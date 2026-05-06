@@ -1,0 +1,83 @@
+name: 🐛 Bug report
+description: Something doesn't work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. The more concrete the report,
+        the faster we can fix it. Please include the **exact** prompt you used
+        and the relevant error/log lines — secrets-free.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Output of `python3 -m ia_pptx --version`"
+      placeholder: "ia-pptx 0.8.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: pipeline
+    attributes:
+      label: Which pipeline?
+      options:
+        - Editable .pptx (pptxgenjs)
+        - Publication .pdf (WeasyPrint)
+        - Streamlit app (specify which path inside)
+        - CLI generate
+        - CLI generate-pdf
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: llm
+    attributes:
+      label: LLM backend
+      options:
+        - Auto (Claude Code if installed, else API)
+        - Claude Code CLI
+        - Anthropic API
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+      placeholder: "I ran `ia-pptx generate ...` and ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command / prompt
+      description: Paste the full command or Streamlit inputs (redact API keys).
+      render: bash
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error output
+      description: Stack trace, Streamlit log lines, anything relevant.
+      render: shell
+
+  - type: input
+    id: os
+    attributes:
+      label: OS + Python version
+      placeholder: "Ubuntu 24.04 / Python 3.12.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?

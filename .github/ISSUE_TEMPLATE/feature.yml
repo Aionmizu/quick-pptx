@@ -1,0 +1,44 @@
+name: 💡 Feature request
+description: Suggest something new — but please open this BEFORE you write the code.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! quick-pptx tries to stay small and focused, so we
+        agree on direction *before* writing code. If your feature lands in
+        scope, open a PR after this issue is acknowledged. If it doesn't,
+        we'll explain why and may suggest a fork-friendly alternative.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: A real workflow, not a "nice to have". Be specific.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What would the user-facing surface look like? CLI flag? Streamlit toggle? Prompt addendum?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What else did you think about and why isn't it the right fit?
+
+  - type: input
+    id: scope
+    attributes:
+      label: How big is this?
+      placeholder: "Small (one prompt edit) / Medium (one new module) / Large (architectural)"
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
